@@ -1,0 +1,18 @@
+# 1. Clonar el repo e instalar dependencias de desarrollo
+pip install -r requirements-dev.txt
+
+# 2. Desde la raiz del proyecto (donde esta la carpeta archpilot_cgra/)
+
+# Correr todas las pruebas con salida detallada
+pytest tests/ -v
+
+# Correr con reporte de cobertura (SYRS-REL-001)
+pytest tests/ -v --cov=archpilot_cgra --cov-report=term-missing
+
+# Correr solo las pruebas de un modulo especifico
+pytest tests/test_functional_unit.py -v
+pytest tests/test_register_file.py -v
+pytest tests/test_processing_element.py -v
+
+# Verificar estilo PEP 8 (SYRS-MNT-001)
+flake8 archpilot_cgra/ tests/

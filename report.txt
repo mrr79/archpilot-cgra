@@ -1,0 +1,20 @@
+RESUMEN DE IMPLEMENTACIÓN - ARCHPILOT CGRA
+
+1. MÓDULOS IMPLEMENTADOS (archpilot_cgra/)
+- exceptions.py: Manejo de errores (desbordamiento y operaciones inválidas).
+- functional_unit.py: Unidad aritmética (ADD, COMPLEMENT, MUL, NOP).
+- register_file.py: Almacenamiento configurable (2-16 registros) con validación.
+- processing_element.py: Integración total. Incluye multiplexor de entrada (N, S, E, W, RF local) y rastreo de actividad.
+
+2. PRUEBAS Y CALIDAD
+- Pruebas unitarias: 41/41 aprobadas (100% éxito).
+- Cobertura: 97% (Supera el 50% requerido).
+- Estándares: Cumple PEP 8, tipado estático completo y un archivo por componente.
+
+3. REQUERIMIENTOS CUMPLIDOS
+- SYRS-FUN: PE funcional, operaciones FU, RF configurable, manejo de overflow.
+- SYRS-MNT/QLY: Código limpio (Flake8), modular y tipado.
+
+4. PRÓXIMOS PASOS (Semana 10)
+- Implementar la memoria que dice a cada PE qué operación ejecutar en cada ciclo y la malla completa de PEs y el motor de ciclos
+- Objetivo: Completar motor de ciclos para el Avance 1 (01/05).

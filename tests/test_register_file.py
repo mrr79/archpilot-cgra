@@ -1,10 +1,10 @@
 """
-Pruebas unitarias para RegisterFile.
+Unit tests for RegisterFile.
 
-Verifica el rango de profundidad configurable (SYRS-FUN-004), las
-operaciones de lectura/escritura, la validacion de indices y el reset.
+Verifies the configurable depth range (SYRS-FUN-004), read/write
+operations, index validation, and reset behavior.
 
-Cumple: SYRS-REL-001
+Complies with: SYRS-REL-001
 """
 
 import pytest
@@ -14,9 +14,9 @@ from archpilot_cgra.register_file import RegisterFile
 
 
 class TestRegisterFile:
-    """Suite de pruebas para el Archivo de Registros."""
+    """Test suite for the Register File."""
 
-    # --- Creacion ---
+    # --- Creation ---
 
     def test_default_depth_is_four(self) -> None:
         rf = RegisterFile()
@@ -42,14 +42,14 @@ class TestRegisterFile:
         with pytest.raises(SimulationException):
             RegisterFile(depth=0)
 
-    # --- Estado inicial ---
+    # --- Initial state ---
 
     def test_initial_values_are_zero(self) -> None:
         rf = RegisterFile(depth=4)
         for i in range(4):
             assert rf.read(i) == 0
 
-    # --- Lectura y escritura ---
+    # --- Read and write ---
 
     def test_write_and_read(self) -> None:
         rf = RegisterFile(depth=4)
@@ -67,12 +67,19 @@ class TestRegisterFile:
         rf.write(1, 20)
         assert rf.read(1) == 20
 
-    # --- Validacion de indices ---
+    # --- Index validation ---
 
     def test_read_out_of_range_raises(self) -> None:
         rf = RegisterFile(depth=4)
         with pytest.raises(SimulationException):
             rf.read(4)
+
+    def test_write_out_of_range_raises(self) -> None:
+        # Both read and write go through _validate_index.
+        # Both code paths must be tested symmetrically.
+        rf = RegisterFile(depth=4)
+        with pytest.raises(SimulationException):
+            rf.write(4, 10)
 
     def test_write_negative_index_raises(self) -> None:
         rf = RegisterFile(depth=4)
@@ -102,6 +109,7 @@ class TestRegisterFile:
         assert rf.get_state() == [0, 5, 0]
 
     def test_get_state_returns_copy(self) -> None:
+        # Modifying the returned list must not affect the internal RF state.
         rf = RegisterFile(depth=4)
         rf.write(1, 7)
         state = rf.get_state()

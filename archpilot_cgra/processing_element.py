@@ -1,16 +1,15 @@
 """
-Modulo del Processing Element (PE) de la arquitectura CGRA.
+Processing Element (PE) module for the CGRA architecture.
 
-El PE es la unidad fundamental de computo de la malla. Encapsula una
-Unidad Funcional (FU), un Archivo de Registros (RF) y la logica de
-multiplexion de entradas y salidas para la comunicacion con vecinos
-a traves de la NoC.
+The PE is the fundamental compute unit of the mesh. It encapsulates
+a Functional Unit (FU), a Register File (RF), and input multiplexer
+logic for communicating with neighbors through the NoC.
 
-Cumple: SYRS-FUN-002, SYRS-FUN-003, SYRS-FUN-004, SYRS-FUN-010,
-        SYRS-MNT-001, SYRS-MNT-002, SYRS-QLY-002
+Complies with: SYRS-FUN-002, SYRS-FUN-003, SYRS-FUN-004, SYRS-FUN-010,
+               SYRS-MNT-001, SYRS-MNT-002, SYRS-QLY-002
 """
 
-from typing import Optional
+from typing import Any, Final, TypedDict
 
 from archpilot_cgra.exceptions import (
     OverflowSimulationException,
@@ -20,12 +19,39 @@ from archpilot_cgra.functional_unit import FunctionalUnit
 from archpilot_cgra.register_file import RegisterFile
 
 
-# Direcciones validas para entradas de vecinos via NoC
-VALID_DIRECTIONS: frozenset[str] = frozenset({"norte", "sur", "este", "oeste"})
+class Instruction(TypedDict):
+    """
+    Typed dictionary representing a PE configuration instruction.
 
-# Mapa del selector del multiplexor de entrada (mux_sel)
-# 0 = RF local, 1 = norte, 2 = sur, 3 = este, 4 = oeste
-MUX_DIRECTION_MAP: dict[int, str] = {
+    Using TypedDict gives type checkers (mypy/pyright) the ability to
+    catch missing keys or wrong value types at analysis time, with zero
+    runtime overhead.
+
+    Fields:
+        opcode (str):  operation to execute.
+        src_a (int):   RF index for operand A (used when mux_sel == 0).
+        src_b (int):   RF index for operand B.
+        dst (int):     RF index where the result is written.
+        mux_sel (int): input mux selector (0=RF, 1=north, 2=south,
+                       3=east, 4=west).
+    """
+
+    opcode: str
+    src_a: int
+    src_b: int
+    dst: int
+    mux_sel: int
+
+
+# Valid neighbor directions for NoC input.
+# Final prevents accidental reassignment of this module-level constant.
+VALID_DIRECTIONS: Final[frozenset[str]] = frozenset(
+    {"norte", "sur", "este", "oeste"}
+)
+
+# Maps mux_sel integer values to neighbor direction strings.
+# Final prevents accidental reassignment of this module-level constant.
+MUX_DIRECTION_MAP: Final[dict[int, str]] = {
     1: "norte",
     2: "sur",
     3: "este",
@@ -35,38 +61,38 @@ MUX_DIRECTION_MAP: dict[int, str] = {
 
 class ProcessingElement:
     """
-    Elemento de Procesamiento (PE) de la arquitectura CGRA.
+    Processing Element (PE) of the CGRA architecture.
 
-    Integra una Unidad Funcional (FU), un Archivo de Registros (RF) y
-    un multiplexor de entrada configurable, permitiendo que cada PE
-    opere de forma autonoma en cada ciclo de reloj a partir de una
-    instruccion distribuida por la Config Memory.
+    Integrates a Functional Unit (FU), a Register File (RF), and a
+    configurable input multiplexer, allowing each PE to operate
+    autonomously each clock cycle based on an instruction distributed
+    by the Config Memory.
 
-    En cada ciclo, el PE:
-      1. Lee sus operandos desde el RF o desde entradas de vecinos (NoC).
-      2. Ejecuta la operacion indicada por la instruccion actual.
-      3. Escribe el resultado en el registro destino del RF.
-      4. Detecta desbordamiento y lanza excepcion si es necesario.
+    Each cycle the PE:
+      1. Reads operands from the RF or from neighbor inputs (NoC).
+      2. Executes the operation indicated by the current instruction.
+      3. Checks for overflow and raises an exception if needed.
+      4. Writes the result to the destination register in the RF.
+      5. Updates the activity trace counter.
 
-    Cumple: SYRS-FUN-002, SYRS-FUN-010.
+    Complies with: SYRS-FUN-002, SYRS-FUN-010.
 
     Attributes:
-        pe_id (tuple[int, int]):  identificador (fila, columna) en la malla.
-        fu (FunctionalUnit):      unidad funcional del PE.
-        rf (RegisterFile):        archivo de registros del PE.
-        data_width (int):         ancho de bit de los datos.
-        output_value (int):       ultimo resultado producido por el PE.
-        input_mux_sel (int):      selector del mux de entrada A.
-                                  0=RF, 1=norte, 2=sur, 3=este, 4=oeste.
-        activity_count (int):     ciclos activos acumulados (traza SYRS-FUN-007).
-        neighbor_inputs (dict):   valores de entrada de vecinos cardinales.
+        pe_id (tuple[int, int]):   identifier (row, column) in the mesh.
+        fu (FunctionalUnit):       functional unit of the PE.
+        rf (RegisterFile):         register file of the PE.
+        data_width (int):          bit width of the data.
+        output_value (int):        last result produced by the PE.
+        input_mux_sel (int):       input mux selector (0-4).
+        activity_count (int):      accumulated active cycles (SYRS-FUN-007).
+        neighbor_inputs (dict):    cardinal neighbor input values.
 
     Example:
         >>> pe = ProcessingElement(pe_id=(0, 0), rf_depth=4, data_width=32)
         >>> pe.rf.write(0, 10)
         >>> pe.rf.write(1, 5)
         >>> pe.load_instruction(
-        ...     {"opcode": "ADD", "src_a": 0, "src_b": 1, "dst": 2, "mux_sel": 0}
+        ...     Instruction(opcode="ADD", src_a=0, src_b=1, dst=2, mux_sel=0)
         ... )
         >>> pe.tick()
         15
@@ -81,14 +107,14 @@ class ProcessingElement:
         data_width: int = 32,
     ) -> None:
         """
-        Inicializa el Processing Element.
+        Initializes the Processing Element.
 
         Args:
-            pe_id (tuple[int, int]): identificador (fila, columna) en la malla.
-            rf_depth (int):          profundidad del RF, entre 2 y 16.
-                                     Por defecto 4.
-            data_width (int):        ancho de bit para operandos y resultados.
-                                     Por defecto 32 bits.
+            pe_id (tuple[int, int]): identifier (row, column) in the mesh.
+            rf_depth (int):          RF depth, between 2 and 16.
+                                     Defaults to 4.
+            data_width (int):        bit width for operands and results.
+                                     Defaults to 32 bits.
 
         Example:
             >>> pe = ProcessingElement(pe_id=(1, 2), rf_depth=8)
@@ -110,33 +136,31 @@ class ProcessingElement:
             "este": 0,
             "oeste": 0,
         }
-        self._current_instruction: Optional[dict] = None
+        # X | None is the modern Python 3.10+ union syntax.
+        # Replaces the deprecated Optional[X] from typing.
+        self._current_instruction: Instruction | None = None
 
     # ------------------------------------------------------------------
-    # Interfaz publica
+    # Public interface
     # ------------------------------------------------------------------
 
-    def load_instruction(self, instruction: dict) -> None:
+    def load_instruction(self, instruction: Instruction) -> None:
         """
-        Carga la instruccion de configuracion para el proximo ciclo.
+        Loads the configuration instruction for the next cycle.
 
-        La instruccion es un diccionario con los siguientes campos:
-
-        - ``opcode``  (str): operacion a ejecutar.
-        - ``src_a``   (int): indice RF del operando A (usado si mux_sel=0).
-        - ``src_b``   (int): indice RF del operando B.
-        - ``dst``     (int): indice RF donde se escribe el resultado.
-        - ``mux_sel`` (int): selector del mux (0=RF, 1=norte, 2=sur,
-          3=este, 4=oeste).
+        Using Instruction (TypedDict) instead of a plain dict allows
+        type checkers to catch missing keys or wrong value types in
+        callers at analysis time.
 
         Args:
-            instruction (dict): diccionario de configuracion del ciclo.
+            instruction (Instruction): typed instruction with opcode,
+                src_a, src_b, dst and mux_sel fields.
 
         Example:
             >>> pe = ProcessingElement((0, 0))
             >>> pe.load_instruction(
-            ...     {"opcode": "MUL", "src_a": 0, "src_b": 1,
-            ...      "dst": 2, "mux_sel": 0}
+            ...     Instruction(opcode="MUL", src_a=0, src_b=1,
+            ...                 dst=2, mux_sel=0)
             ... )
         """
         self._current_instruction = instruction
@@ -144,28 +168,29 @@ class ProcessingElement:
 
     def tick(self) -> int:
         """
-        Avanza la simulacion exactamente un ciclo de reloj.
+        Advances the simulation by exactly one clock cycle.
 
-        Secuencia de ejecucion:
-          1. Leer operandos segun instruccion y selector del mux.
-          2. Ejecutar la FU con los operandos obtenidos.
-          3. Detectar desbordamiento (SYRS-FUN-010).
-          4. Escribir resultado en el registro destino.
-          5. Actualizar traza de actividad (SYRS-FUN-007).
+        Execution sequence:
+          1. Read operands according to the instruction and mux selector.
+          2. Execute the FU with the obtained operands.
+          3. Check for overflow (SYRS-FUN-010).
+          4. Write the result to the destination register.
+          5. Update the activity trace counter (SYRS-FUN-007).
 
         Returns:
-            int: valor producido en este ciclo (almacenado en output_value).
+            int: value produced in this cycle (stored in output_value).
 
         Raises:
-            OverflowSimulationException: si el resultado supera el rango
-                de data_width bits en complemento a dos.
+            OverflowSimulationException: if the result is outside the
+                signed N-bit range [-(2^(N-1)), 2^(N-1)-1].
 
         Example:
             >>> pe = ProcessingElement((0, 0), rf_depth=4, data_width=32)
             >>> pe.rf.write(0, 6)
             >>> pe.rf.write(1, 7)
             >>> pe.load_instruction(
-            ...     {"opcode": "MUL", "src_a": 0, "src_b": 1, "dst": 3, "mux_sel": 0}
+            ...     Instruction(opcode="MUL", src_a=0, src_b=1,
+            ...                 dst=3, mux_sel=0)
             ... )
             >>> pe.tick()
             42
@@ -181,7 +206,6 @@ class ProcessingElement:
 
         operand_a: int = self._read_mux(src_a_idx)
         operand_b: int = self.rf.read(src_b_idx)
-
         result: int = self.fu.execute(opcode, operand_a, operand_b)
 
         self._check_overflow(result)
@@ -196,15 +220,15 @@ class ProcessingElement:
 
     def set_neighbor_input(self, direction: str, value: int) -> None:
         """
-        Establece el valor de entrada proveniente de un vecino via NoC.
+        Sets the input value received from a neighbor via the NoC.
 
         Args:
-            direction (str): cardinal del vecino: "norte", "sur", "este",
-                             "oeste".
-            value (int):     valor de datos recibido del vecino.
+            direction (str): cardinal direction of the neighbor:
+                             "norte", "sur", "este", "oeste".
+            value (int):     data value received from the neighbor.
 
         Raises:
-            SimulationException: si direction no es un cardinal valido.
+            SimulationException: if direction is not a valid cardinal.
 
         Example:
             >>> pe = ProcessingElement((1, 1))
@@ -214,29 +238,28 @@ class ProcessingElement:
         """
         if direction not in VALID_DIRECTIONS:
             raise SimulationException(
-                f"Direccion invalida: '{direction}'. "
-                f"Validas: {sorted(VALID_DIRECTIONS)}."
+                f"Invalid direction: '{direction}'. "
+                f"Valid directions: {sorted(VALID_DIRECTIONS)}."
             )
         self.neighbor_inputs[direction] = value
 
-    def get_state(self) -> dict:
+    def get_state(self) -> dict[str, Any]:
         """
-        Retorna el estado completo del PE para inspeccion o depuracion.
+        Returns the complete PE state for inspection or debugging.
 
-        Util para el modo interactivo (SYRS-OPS-002) y para la
-        construccion de la traza de actividad (SYRS-FUN-007).
+        Useful for interactive debug mode (SYRS-OPS-002) and for
+        building the activity trace (SYRS-FUN-007).
 
         Returns:
-            dict: con las claves: pe_id, registers, output_value,
-                  last_opcode, activity_count, input_mux_sel,
-                  neighbor_inputs.
+            dict[str, Any]: with keys: pe_id, registers, output_value,
+                last_opcode, activity_count, input_mux_sel,
+                neighbor_inputs.
 
         Example:
             >>> pe = ProcessingElement((0, 0))
             >>> state = pe.get_state()
-            >>> list(state.keys())
-            ['pe_id', 'registers', 'output_value', 'last_opcode',
-             'activity_count', 'input_mux_sel', 'neighbor_inputs']
+            >>> "pe_id" in state
+            True
         """
         return {
             "pe_id": self.pe_id,
@@ -250,10 +273,10 @@ class ProcessingElement:
 
     def reset(self) -> None:
         """
-        Reinicia el PE al estado inicial de simulacion.
+        Resets the PE to its initial simulation state.
 
-        Limpia el RF, reinicia la FU, pone output_value y
-        activity_count en 0 y descarta la instruccion actual.
+        Clears the RF, resets the FU, sets output_value and
+        activity_count to 0, and discards the current instruction.
 
         Example:
             >>> pe = ProcessingElement((0, 0))
@@ -270,45 +293,63 @@ class ProcessingElement:
         self.neighbor_inputs = {"norte": 0, "sur": 0, "este": 0, "oeste": 0}
 
     # ------------------------------------------------------------------
-    # Metodos internos
+    # Private methods
     # ------------------------------------------------------------------
 
     def _read_mux(self, src_a_idx: int) -> int:
         """
-        Lee el operando A segun el selector del multiplexor.
+        Reads operand A according to the input multiplexer selector.
 
-        Si mux_sel es 0, lee del RF local en src_a_idx.
-        Si mux_sel es 1-4, lee de la entrada del vecino correspondiente.
+        If mux_sel is 0, reads from the local RF at src_a_idx.
+        If mux_sel is 1-4, reads from the corresponding neighbor input.
+        If mux_sel is any other value, raises SimulationException to
+        surface configuration errors rather than silently falling back
+        to the RF (which would hide misconfigured instructions).
 
         Args:
-            src_a_idx (int): indice RF a usar cuando mux_sel == 0.
+            src_a_idx (int): RF index to use when mux_sel == 0.
 
         Returns:
-            int: valor del operando A seleccionado.
+            int: value of operand A.
+
+        Raises:
+            SimulationException: if mux_sel is outside the valid range [0, 4].
         """
         if self.input_mux_sel == 0:
             return self.rf.read(src_a_idx)
         direction = MUX_DIRECTION_MAP.get(self.input_mux_sel)
         if direction is None:
-            return self.rf.read(src_a_idx)
+            # Raise explicitly rather than silently falling back to RF.
+            # A misconfigured instruction must produce an error, not a
+            # wrong result with no signal.
+            raise SimulationException(
+                f"Invalid mux_sel: {self.input_mux_sel}. "
+                f"Valid range: [0, 4]."
+            )
         return self.neighbor_inputs[direction]
 
     def _check_overflow(self, result: int) -> None:
         """
-        Verifica que el resultado no supere el rango de data_width bits.
+        Verifies that the result is within the signed N-bit range.
 
-        Para un entero con signo de N bits el rango es
-        [-(2^(N-1)), 2^(N-1) - 1]. Si se supera, lanza
-        OverflowSimulationException con el estado actual del PE.
+        The signed N-bit range is [-(2^(N-1)), 2^(N-1)-1].
+        The bounds are NOT symmetric: for 8-bit, the range is [-128, 127].
+
+        The previous implementation used abs(result) > max_val, which
+        incorrectly flagged -128 as overflow because abs(-128) = 128 > 127,
+        even though -128 is the valid minimum for 8-bit signed integers.
+        The correct check is: not (min_val <= result <= max_val).
 
         Args:
-            result (int): valor a verificar.
+            result (int): value to verify.
 
         Raises:
-            OverflowSimulationException: si abs(result) > max_val.
+            OverflowSimulationException: if result is outside
+                [min_val, max_val].
         """
         max_val: int = (2 ** (self.data_width - 1)) - 1
-        if abs(result) > max_val:
+        min_val: int = -(2 ** (self.data_width - 1))
+        if not (min_val <= result <= max_val):
             raise OverflowSimulationException(
                 pe_id=self.pe_id,
                 value=result,

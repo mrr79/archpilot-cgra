@@ -1,23 +1,23 @@
 """
-ArchPilot-CGRA: Entorno de Modelado y Simulacion para CGRAs.
+ArchPilot-CGRA: Modeling and Simulation Environment for CGRAs.
 
-Paquete principal. Expone la API publica del simulador.
+Main package. Exposes the public simulator API.
 
-Modulos del paquete (Semana 9 - ACT-08):
-  - exceptions:        jerarquia de excepciones del simulador.
-  - functional_unit:   Unidad Funcional (FU) aritmetica.
-  - register_file:     Archivo de Registros (RF) por PE.
-  - processing_element: Processing Element completo (PE).
+Modules (Week 9 - ACT-08):
+  - exceptions:          simulator exception hierarchy.
+  - functional_unit:     arithmetic Functional Unit (FU).
+  - register_file:       per-PE Register File (RF).
+  - processing_element:  complete Processing Element (PE).
 """
 
 from archpilot_cgra.exceptions import (
-    SimulationException,
-    OverflowSimulationException,
     InvalidOperationException,
+    OverflowSimulationException,
+    SimulationException,
 )
 from archpilot_cgra.functional_unit import FunctionalUnit
-from archpilot_cgra.register_file import RegisterFile
 from archpilot_cgra.processing_element import ProcessingElement
+from archpilot_cgra.register_file import RegisterFile
 
 __all__ = [
     "SimulationException",

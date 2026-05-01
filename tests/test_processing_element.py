@@ -1,10 +1,10 @@
 """
-Pruebas unitarias para ProcessingElement.
+Unit tests for ProcessingElement.
 
-Verifica la integracion de FU y RF, las operaciones aritmeticas,
-el multiplexor de entradas, la deteccion de overflow y el reset.
+Verifies FU and RF integration, arithmetic operations, input multiplexer,
+overflow detection, activity tracking, and reset behavior.
 
-Cumple: SYRS-FUN-002, SYRS-FUN-010, SYRS-REL-001
+Complies with: SYRS-FUN-002, SYRS-FUN-010, SYRS-REL-001
 """
 
 import pytest
@@ -23,7 +23,7 @@ def make_instr(
     dst: int = 2,
     mux_sel: int = 0,
 ) -> dict:
-    """Fabrica una instruccion de prueba con valores por defecto."""
+    """Factory helper that builds a test instruction with default values."""
     return {
         "opcode": opcode,
         "src_a": src_a,
@@ -34,13 +34,13 @@ def make_instr(
 
 
 class TestProcessingElement:
-    """Suite de pruebas para el Processing Element."""
+    """Test suite for the Processing Element."""
 
     def setup_method(self) -> None:
-        # data_width=8 facilita provocar overflows en pruebas (max=127)
+        # data_width=8 makes it easy to trigger overflows in tests (max=127).
         self.pe = ProcessingElement(pe_id=(0, 0), rf_depth=4, data_width=8)
 
-    # --- Creacion ---
+    # --- Creation ---
 
     def test_pe_id_stored_correctly(self) -> None:
         assert self.pe.pe_id == (0, 0)
@@ -55,7 +55,7 @@ class TestProcessingElement:
         pe = ProcessingElement(pe_id=(0, 0), rf_depth=8)
         assert len(pe.rf) == 8
 
-    # --- Operaciones ADD, COMPLEMENT, MUL ---
+    # --- Operations: ADD, COMPLEMENT, MUL ---
 
     def test_add_two_registers(self) -> None:
         self.pe.rf.write(0, 10)
@@ -94,7 +94,7 @@ class TestProcessingElement:
         self.pe.tick()
         assert self.pe.output_value == 10
 
-    # --- Actividad ---
+    # --- Activity tracking ---
 
     def test_activity_count_increments_on_real_op(self) -> None:
         self.pe.rf.write(0, 1)
@@ -108,10 +108,22 @@ class TestProcessingElement:
         self.pe.tick()
         assert self.pe.activity_count == 0
 
+    def test_activity_count_accumulates_across_ticks(self) -> None:
+        # Verifies that multiple real operations accumulate correctly
+        # and that NOP cycles do not increment the counter.
+        self.pe.rf.write(0, 1)
+        self.pe.rf.write(1, 1)
+        for _ in range(3):
+            self.pe.load_instruction(make_instr("ADD"))
+            self.pe.tick()
+        self.pe.load_instruction(make_instr("NOP"))
+        self.pe.tick()
+        assert self.pe.activity_count == 3
+
     # --- Overflow ---
 
     def test_overflow_raises_exception(self) -> None:
-        # 100 + 100 = 200 > 127 (max para 8 bits con signo)
+        # 100 + 100 = 200 > 127 (max for 8-bit signed)
         self.pe.rf.write(0, 100)
         self.pe.rf.write(1, 100)
         self.pe.load_instruction(make_instr("ADD"))
@@ -134,7 +146,16 @@ class TestProcessingElement:
             self.pe.tick()
         assert "pe_id" in exc_info.value.pe_state
 
-    # --- Multiplexor de entrada ---
+    def test_negative_boundary_does_not_overflow(self) -> None:
+        # -64 + -64 = -128, which is the valid minimum for 8-bit signed.
+        # The previous abs(result) > max_val check incorrectly flagged
+        # this as overflow because abs(-128) = 128 > 127.
+        self.pe.rf.write(0, -64)
+        self.pe.rf.write(1, -64)
+        self.pe.load_instruction(make_instr("ADD"))
+        assert self.pe.tick() == -128  # must not raise
+
+    # --- Input multiplexer ---
 
     def test_mux_sel_zero_reads_rf(self) -> None:
         self.pe.rf.write(0, 20)
@@ -153,6 +174,27 @@ class TestProcessingElement:
         self.pe.rf.write(1, 3)
         self.pe.load_instruction(make_instr("ADD", mux_sel=2))
         assert self.pe.tick() == 13
+
+    def test_mux_sel_este_reads_neighbor(self) -> None:
+        # East path was untested; all five mux inputs must be covered.
+        self.pe.set_neighbor_input("este", 20)
+        self.pe.rf.write(1, 4)
+        self.pe.load_instruction(make_instr("ADD", mux_sel=3))
+        assert self.pe.tick() == 24
+
+    def test_mux_sel_oeste_reads_neighbor(self) -> None:
+        # West path was untested; all five mux inputs must be covered.
+        self.pe.set_neighbor_input("oeste", 15)
+        self.pe.rf.write(1, 5)
+        self.pe.load_instruction(make_instr("ADD", mux_sel=4))
+        assert self.pe.tick() == 20
+
+    def test_invalid_mux_sel_raises(self) -> None:
+        # A silent fallback on invalid mux_sel hides configuration errors.
+        # An explicit exception is required instead.
+        self.pe.load_instruction(make_instr("ADD", mux_sel=99))
+        with pytest.raises(SimulationException):
+            self.pe.tick()
 
     # --- set_neighbor_input ---
 

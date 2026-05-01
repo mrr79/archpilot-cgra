@@ -1,10 +1,10 @@
 """
-Pruebas unitarias para FunctionalUnit.
+Unit tests for FunctionalUnit.
 
-Verifica las tres operaciones obligatorias (SYRS-FUN-003), el manejo de
-opcodes invalidos, el tracking de actividad y el reset.
+Verifies the three mandatory operations (SYRS-FUN-003), invalid opcode
+handling, activity tracking, and reset behavior.
 
-Cumple: SYRS-REL-001
+Complies with: SYRS-REL-001
 """
 
 import pytest
@@ -14,7 +14,7 @@ from archpilot_cgra.functional_unit import FunctionalUnit
 
 
 class TestFunctionalUnit:
-    """Suite de pruebas para la Unidad Funcional."""
+    """Test suite for the Functional Unit."""
 
     def setup_method(self) -> None:
         self.fu = FunctionalUnit(data_width=32)
@@ -64,7 +64,7 @@ class TestFunctionalUnit:
         self.fu.execute("NOP", 1, 2)
         assert not self.fu.active
 
-    # --- Actividad ---
+    # --- Activity tracking ---
 
     def test_add_sets_active_true(self) -> None:
         self.fu.execute("ADD", 1, 1)
@@ -74,7 +74,17 @@ class TestFunctionalUnit:
         self.fu.execute("MUL", 2, 3)
         assert self.fu.last_opcode == "MUL"
 
-    # --- Opcode invalido ---
+    # --- NOP after real operation resets active ---
+
+    def test_nop_resets_active_to_false(self) -> None:
+        # Verifies the transition active=True -> active=False after NOP.
+        # test_nop_does_not_set_active only checks NOP from the initial state.
+        self.fu.execute("ADD", 1, 1)
+        assert self.fu.active  # sanity check
+        self.fu.execute("NOP", 0)
+        assert not self.fu.active
+
+    # --- Invalid opcode ---
 
     def test_invalid_opcode_raises_exception(self) -> None:
         with pytest.raises(InvalidOperationException):

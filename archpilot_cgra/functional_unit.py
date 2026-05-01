@@ -1,36 +1,40 @@
 """
-Modulo de la Unidad Funcional (FU) del Processing Element.
+Functional Unit (FU) module for the Processing Element.
 
-La Unidad Funcional es el componente aritmetico-logico principal de cada
-PE. Soporta un conjunto de operaciones enteras parametrizables y mantiene
-estado de actividad para la generacion de trazas de conmutacion.
+The Functional Unit is the main arithmetic-logic component of each PE.
+It supports a set of integer operations and maintains activity state
+for switching trace generation.
 
-Cumple: SYRS-FUN-003, SYRS-MNT-001, SYRS-MNT-002, SYRS-QLY-002
+Complies with: SYRS-FUN-003, SYRS-MNT-001, SYRS-MNT-002, SYRS-QLY-002
 """
+
+from typing import Final
 
 from archpilot_cgra.exceptions import InvalidOperationException
 
-
-# Conjunto de opcodes validos soportados por la FU
-SUPPORTED_OPCODES: frozenset[str] = frozenset({"ADD", "COMPLEMENT", "MUL", "NOP"})
+# Valid opcodes supported by the FU.
+# Final prevents accidental reassignment of this module-level constant.
+SUPPORTED_OPCODES: Final[frozenset[str]] = frozenset(
+    {"ADD", "COMPLEMENT", "MUL", "NOP"}
+)
 
 
 class FunctionalUnit:
     """
-    Unidad Funcional (FU) de un Processing Element de la CGRA.
+    Functional Unit (FU) of a CGRA Processing Element.
 
-    Ejecuta operaciones aritmeticas enteras por ciclo de reloj. Soporta
-    suma (ADD), complemento a dos (COMPLEMENT), multiplicacion (MUL) y
-    no-operacion (NOP), cumpliendo SYRS-FUN-003.
+    Executes integer arithmetic operations per clock cycle. Supports
+    addition (ADD), two's complement (COMPLEMENT), multiplication (MUL),
+    and no-operation (NOP), complying with SYRS-FUN-003.
 
-    Mantiene el ultimo opcode ejecutado y un indicador de actividad
-    para permitir la generacion de trazas de conmutacion (SYRS-FUN-007).
+    Maintains the last executed opcode and an activity flag to enable
+    switching trace generation (SYRS-FUN-007).
 
     Attributes:
-        data_width (int): ancho de bit de los datos procesados.
-        last_opcode (str): ultimo opcode ejecutado en la FU.
-        active (bool):    True si la FU ejecuto una operacion real
-                          (distinta de NOP) en el ultimo ciclo.
+        data_width (int): bit width of the processed data.
+        last_opcode (str): last opcode executed by the FU.
+        active (bool): True if the FU executed a real operation
+                       (other than NOP) in the last cycle.
 
     Example:
         >>> fu = FunctionalUnit(data_width=32)
@@ -46,11 +50,11 @@ class FunctionalUnit:
 
     def __init__(self, data_width: int = 32) -> None:
         """
-        Inicializa la Unidad Funcional.
+        Initializes the Functional Unit.
 
         Args:
-            data_width (int): ancho de bit de los operandos y resultado.
-                              Por defecto 32 bits.
+            data_width (int): bit width of the operands and result.
+                              Defaults to 32 bits.
 
         Example:
             >>> fu = FunctionalUnit(data_width=16)
@@ -68,26 +72,29 @@ class FunctionalUnit:
         operand_b: int = 0,
     ) -> int:
         """
-        Ejecuta una operacion aritmetica sobre los operandos dados.
+        Executes an arithmetic operation on the given operands.
 
-        Operaciones soportadas (SYRS-FUN-003):
-          - ``ADD``:        resultado = operand_a + operand_b
-          - ``COMPLEMENT``: resultado = -operand_a (complemento a dos)
-          - ``MUL``:        resultado = operand_a * operand_b
-          - ``NOP``:        resultado = 0, sin actividad registrada
+        Supported operations (SYRS-FUN-003):
+          - ``ADD``:        result = operand_a + operand_b
+          - ``COMPLEMENT``: result = -operand_a (two's complement)
+          - ``MUL``:        result = operand_a * operand_b
+          - ``NOP``:        result = 0, no activity recorded
+
+        Uses Python 3.10+ match statement as the idiomatic dispatch
+        construct for opcode handling.
 
         Args:
-            opcode (str):    codigo de la operacion a ejecutar.
-            operand_a (int): primer operando entero.
-            operand_b (int): segundo operando entero.
-                             Ignorado en COMPLEMENT y NOP. Por defecto 0.
+            opcode (str):    operation code to execute.
+            operand_a (int): first integer operand.
+            operand_b (int): second integer operand.
+                             Ignored in COMPLEMENT and NOP. Defaults to 0.
 
         Returns:
-            int: resultado entero de la operacion.
+            int: integer result of the operation.
 
         Raises:
-            InvalidOperationException: si el opcode no pertenece al
-                conjunto de operaciones soportadas.
+            InvalidOperationException: if the opcode is not in
+                SUPPORTED_OPCODES.
 
         Example:
             >>> fu = FunctionalUnit()
@@ -104,20 +111,25 @@ class FunctionalUnit:
         self.last_opcode = opcode
         self.active = opcode != "NOP"
 
-        if opcode == "ADD":
-            return operand_a + operand_b
-        if opcode == "COMPLEMENT":
-            return -operand_a
-        if opcode == "MUL":
-            return operand_a * operand_b
-        return 0  # NOP
+        # match is the idiomatic Python 3.10+ construct for opcode dispatch.
+        # It is more readable than chained if-elif and allows exhaustiveness
+        # checking by type checkers.
+        match opcode:
+            case "ADD":
+                return operand_a + operand_b
+            case "COMPLEMENT":
+                return -operand_a
+            case "MUL":
+                return operand_a * operand_b
+            case _:  # NOP
+                return 0
 
     def reset(self) -> None:
         """
-        Reinicia el estado interno de la FU al estado inicial.
+        Resets the internal state of the FU to its initial values.
 
-        Pone last_opcode en "NOP" y active en False. Se invoca al
-        inicio de cada nuevo contexto de simulacion.
+        Sets last_opcode to "NOP" and active to False. Called at the
+        start of each new simulation context.
 
         Example:
             >>> fu = FunctionalUnit()

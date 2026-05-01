@@ -1,70 +1,70 @@
 """
-Modulo de excepciones del simulador ArchPilot-CGRA.
+Exception module for the ArchPilot-CGRA simulator.
 
-Define la jerarquia de excepciones utilizadas para senalizar
-condiciones de error durante la simulacion, incluyendo
-desbordamientos de datos y operaciones invalidas.
+Defines the exception hierarchy used to signal error conditions
+during simulation, including data overflows and invalid operations.
 
-Cumple: SYRS-FUN-010, SYRS-MNT-001, SYRS-MNT-002, SYRS-QLY-002
+Complies with: SYRS-FUN-010, SYRS-MNT-001, SYRS-MNT-002, SYRS-QLY-002
 """
+
+from typing import Any
 
 
 class SimulationException(Exception):
-    """Excepcion base para todos los errores del simulador ArchPilot-CGRA."""
+    """Base exception for all ArchPilot-CGRA simulator errors."""
 
 
 class OverflowSimulationException(SimulationException):
     """
-    Se lanza cuando el resultado de una operacion supera el rango
-    representable con el ancho de bit configurado en el PE.
+    Raised when an operation result exceeds the representable range
+    for the configured bit width of the PE.
 
-    Cumple SYRS-FUN-010: el sistema genera una excepcion de simulacion
-    y registra el estado del PE afectado al momento del desbordamiento.
+    Complies with SYRS-FUN-010: the system raises a simulation exception
+    and records the full PE state at the moment of the overflow.
 
     Attributes:
-        pe_id (tuple[int, int]): identificador (fila, columna) del PE.
-        value (int):             valor que causo el desbordamiento.
-        max_value (int):         valor maximo permitido para data_width bits.
-        pe_state (dict):         instantanea del estado del PE al momento
-                                 del error.
+        pe_id (tuple[int, int]):   identifier (row, column) of the PE.
+        value (int):               value that caused the overflow.
+        max_value (int):           maximum allowed value for data_width bits.
+        pe_state (dict[str, Any]): snapshot of the PE state at the time
+                                   of the error.
 
     Example:
         >>> raise OverflowSimulationException(
         ...     pe_id=(0, 0), value=200, max_value=127,
         ...     pe_state={"registers": [100, 100, 0, 0]}
         ... )
-        OverflowSimulationException: Overflow en PE(0, 0): ...
     """
 
     def __init__(
         self,
-        pe_id: tuple,
+        pe_id: tuple[int, int],
         value: int,
         max_value: int,
-        pe_state: dict,
+        pe_state: dict[str, Any],
     ) -> None:
-        self.pe_id = pe_id
+        self.pe_id: tuple[int, int] = pe_id
         self.value: int = value
         self.max_value: int = max_value
-        self.pe_state: dict = pe_state
+        self.pe_state: dict[str, Any] = pe_state
         super().__init__(
-            f"Overflow en PE{pe_id}: valor={value} supera "
-            f"max={max_value}. Estado: {pe_state}"
+            f"Overflow in PE{pe_id}: value={value} exceeds "
+            f"max={max_value}. State: {pe_state}"
         )
 
 
 class InvalidOperationException(SimulationException):
     """
-    Se lanza cuando la Unidad Funcional recibe un opcode no soportado.
+    Raised when the Functional Unit receives an unsupported opcode.
 
     Attributes:
-        opcode (str): el opcode invalido que genero el error.
+        opcode (str): the invalid opcode that triggered the error.
 
     Example:
         >>> raise InvalidOperationException("MODULO")
-        InvalidOperationException: Operacion no soportada: 'MODULO'
+        InvalidOperationException: Unsupported operation: 'MODULO'
     """
 
     def __init__(self, opcode: str) -> None:
         self.opcode: str = opcode
-        super().__init__(f"Operacion no soportada: '{opcode}'")
+        super().__init__(f"Unsupported operation: '{opcode}'")

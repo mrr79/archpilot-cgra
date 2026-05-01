@@ -1,33 +1,34 @@
 """
-Modulo del Archivo de Registros (RF) del Processing Element.
+Register File (RF) module for the Processing Element.
 
-El Archivo de Registros provee almacenamiento local de datos para cada PE.
-Su profundidad es configurable de forma independiente por celda dentro del
-rango definido por el estandar de la arquitectura.
+The Register File provides local data storage for each PE.
+Its depth is independently configurable per cell within the
+range defined by the architecture standard.
 
-Cumple: SYRS-FUN-004, SYRS-MNT-001, SYRS-MNT-002, SYRS-QLY-002
+Complies with: SYRS-FUN-004, SYRS-MNT-001, SYRS-MNT-002, SYRS-QLY-002
 """
+
+from typing import Final
 
 from archpilot_cgra.exceptions import SimulationException
 
-
-# Limites de profundidad del RF segun SYRS-FUN-004
-RF_MIN_DEPTH: int = 2
-RF_MAX_DEPTH: int = 16
+# Depth limits per SYRS-FUN-004.
+# Final prevents accidental reassignment of these module-level constants.
+RF_MIN_DEPTH: Final[int] = 2
+RF_MAX_DEPTH: Final[int] = 16
 
 
 class RegisterFile:
     """
-    Archivo de Registros (RF) de un Processing Element de la CGRA.
+    Register File (RF) of a CGRA Processing Element.
 
-    Provee almacenamiento de enteros con profundidad configurable entre
-    2 y 16 registros por celda (SYRS-FUN-004). Todos los registros se
-    inicializan en 0. Soporta lectura y escritura indexada con validacion
-    de rango en cada acceso.
+    Provides integer storage with configurable depth between 2 and 16
+    registers per cell (SYRS-FUN-004). All registers are initialized to 0.
+    Supports indexed read and write with range validation on every access.
 
     Attributes:
-        depth (int):      numero de registros disponibles [2, 16].
-        data_width (int): ancho de bit de cada registro en bits.
+        depth (int):      number of available registers [2, 16].
+        data_width (int): bit width of each register.
 
     Example:
         >>> rf = RegisterFile(depth=4, data_width=32)
@@ -40,27 +41,25 @@ class RegisterFile:
 
     def __init__(self, depth: int = 4, data_width: int = 32) -> None:
         """
-        Inicializa el Archivo de Registros.
+        Initializes the Register File.
 
         Args:
-            depth (int):      numero de registros. Debe estar en [2, 16].
-                              Por defecto 4.
-            data_width (int): ancho de bit de cada registro. Por defecto 32.
+            depth (int):      number of registers. Must be in [2, 16].
+                              Defaults to 4.
+            data_width (int): bit width of each register. Defaults to 32.
 
         Raises:
-            SimulationException: si depth esta fuera del rango [2, 16].
+            SimulationException: if depth is outside the range [2, 16].
 
         Example:
             >>> rf = RegisterFile(depth=8)
             >>> len(rf)
             8
-            >>> RegisterFile(depth=1)
-            Raises SimulationException
         """
         if not (RF_MIN_DEPTH <= depth <= RF_MAX_DEPTH):
             raise SimulationException(
-                f"Profundidad de RF invalida: {depth}. "
-                f"Debe estar entre {RF_MIN_DEPTH} y {RF_MAX_DEPTH}."
+                f"Invalid RF depth: {depth}. "
+                f"Must be between {RF_MIN_DEPTH} and {RF_MAX_DEPTH}."
             )
         self.depth: int = depth
         self.data_width: int = data_width
@@ -68,16 +67,16 @@ class RegisterFile:
 
     def read(self, index: int) -> int:
         """
-        Lee el valor almacenado en el registro indicado.
+        Reads the value stored at the given register index.
 
         Args:
-            index (int): indice del registro (0-based).
+            index (int): register index (0-based).
 
         Returns:
-            int: valor entero almacenado en el registro.
+            int: integer value stored in the register.
 
         Raises:
-            SimulationException: si index esta fuera del rango [0, depth-1].
+            SimulationException: if index is outside [0, depth-1].
 
         Example:
             >>> rf = RegisterFile(depth=4)
@@ -90,14 +89,14 @@ class RegisterFile:
 
     def write(self, index: int, value: int) -> None:
         """
-        Escribe un valor entero en el registro indicado.
+        Writes an integer value to the given register index.
 
         Args:
-            index (int): indice del registro (0-based).
-            value (int): valor entero a almacenar.
+            index (int): register index (0-based).
+            value (int): integer value to store.
 
         Raises:
-            SimulationException: si index esta fuera del rango [0, depth-1].
+            SimulationException: if index is outside [0, depth-1].
 
         Example:
             >>> rf = RegisterFile(depth=4)
@@ -110,9 +109,9 @@ class RegisterFile:
 
     def reset(self) -> None:
         """
-        Pone todos los registros en 0.
+        Sets all registers to 0.
 
-        Se utiliza al reiniciar la simulacion o al inicializar el PE.
+        Used when resetting the simulation or initializing the PE.
 
         Example:
             >>> rf = RegisterFile(depth=4)
@@ -125,13 +124,14 @@ class RegisterFile:
 
     def get_state(self) -> list[int]:
         """
-        Retorna una copia del estado actual de todos los registros.
+        Returns a copy of the current state of all registers.
 
-        Retorna una copia para evitar modificaciones externas al estado
-        interno del archivo de registros.
+        Returns a copy rather than a direct reference to prevent
+        external code from modifying internal state without going
+        through write().
 
         Returns:
-            list[int]: lista con los valores actuales de los depth registros.
+            list[int]: list with the current values of all registers.
 
         Example:
             >>> rf = RegisterFile(depth=3)
@@ -143,20 +143,20 @@ class RegisterFile:
 
     def _validate_index(self, index: int) -> None:
         """
-        Valida que el indice de registro sea accesible.
+        Validates that the register index is within bounds.
 
         Args:
-            index (int): indice a validar.
+            index (int): index to validate.
 
         Raises:
-            SimulationException: si index < 0 o index >= depth.
+            SimulationException: if index < 0 or index >= depth.
         """
         if not (0 <= index < self.depth):
             raise SimulationException(
-                f"Indice de registro fuera de rango: {index}. "
-                f"Rango valido: [0, {self.depth - 1}]."
+                f"Register index out of range: {index}. "
+                f"Valid range: [0, {self.depth - 1}]."
             )
 
     def __len__(self) -> int:
-        """Retorna la profundidad del archivo de registros."""
+        """Returns the depth of the register file."""
         return self.depth

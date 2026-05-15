@@ -1,9 +1,6 @@
 """
 Exception module for the ArchPilot-CGRA simulator.
 
-Defines the exception hierarchy used to signal error conditions
-during simulation, including data overflows and invalid operations.
-
 Complies with: SYRS-FUN-010, SYRS-MNT-001, SYRS-MNT-002, SYRS-QLY-002
 """
 
@@ -19,8 +16,7 @@ class OverflowSimulationException(SimulationException):
     Raised when an operation result exceeds the representable range
     for the configured bit width of the PE.
 
-    Complies with SYRS-FUN-010: the system raises a simulation exception
-    and records the full PE state at the moment of the overflow.
+    Complies with SYRS-FUN-010.
 
     Attributes:
         pe_id (tuple[int, int]):   identifier (row, column) of the PE.
@@ -28,12 +24,6 @@ class OverflowSimulationException(SimulationException):
         max_value (int):           maximum allowed value for data_width bits.
         pe_state (dict[str, Any]): snapshot of the PE state at the time
                                    of the error.
-
-    Example:
-        >>> raise OverflowSimulationException(
-        ...     pe_id=(0, 0), value=200, max_value=127,
-        ...     pe_state={"registers": [100, 100, 0, 0]}
-        ... )
     """
 
     def __init__(
@@ -59,12 +49,16 @@ class InvalidOperationException(SimulationException):
 
     Attributes:
         opcode (str): the invalid opcode that triggered the error.
-
-    Example:
-        >>> raise InvalidOperationException("MODULO")
-        InvalidOperationException: Unsupported operation: 'MODULO'
     """
 
     def __init__(self, opcode: str) -> None:
         self.opcode: str = opcode
         super().__init__(f"Unsupported operation: '{opcode}'")
+
+
+class ConfigMemoryException(SimulationException):
+    """
+    Raised when an invalid configuration is loaded into the Config Memory.
+
+    Typical causes: pe_id outside mesh bounds, malformed instruction dicts.
+    """

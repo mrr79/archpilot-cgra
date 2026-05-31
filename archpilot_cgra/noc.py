@@ -33,11 +33,12 @@ SUPPORTED_TOPOLOGIES: Final[frozenset[str]] = frozenset(
     {TOPOLOGY_MESH, TOPOLOGY_TORUS}
 )
 
-# Cardinal direction labels used in ProcessingElement.neighbor_inputs
-DIRECTION_NORTH: Final[str] = "norte"
-DIRECTION_SOUTH: Final[str] = "sur"
-DIRECTION_EAST: Final[str] = "este"
-DIRECTION_WEST: Final[str] = "oeste"
+# Cardinal direction labels used in ProcessingElement.neighbor_inputs.
+# All identifiers use English to match the rest of the public API.
+DIRECTION_NORTH: Final[str] = "north"
+DIRECTION_SOUTH: Final[str] = "south"
+DIRECTION_EAST: Final[str] = "east"
+DIRECTION_WEST: Final[str] = "west"
 
 
 class NoC:
@@ -196,10 +197,11 @@ class NoC:
         cycle, not values being written by peers in the current cycle.
 
         Phase 1 — Snapshot: read output_value from every PE.
-        Phase 2 — Distribute: write neighbor inputs based on topology.
+        Phase 2 — Distribute: write neighbor inputs via get_neighbors(),
+                  which delegates to the correct topology internally.
 
-        This method is called by PEArray._propagate_neighbors() before
-        each tick() in the simulation loop.
+        This method is called by PEArray.step() before each tick() in
+        the simulation loop.
 
         Args:
             grid: dict mapping pe_id (row, col) -> ProcessingElement.
@@ -213,11 +215,13 @@ class NoC:
             pe_id: pe.output_value for pe_id, pe in grid.items()
         }
 
-        # Phase 2: distribute to neighbor inputs
-        if self.topology == TOPOLOGY_MESH:
-            self._propagate_mesh(grid, snapshot)
-        else:
-            self._propagate_torus(grid, snapshot)
+        # Phase 2: distribute to neighbor inputs.
+        # get_neighbors() already dispatches to the correct topology,
+        # so a single loop replaces the former _propagate_mesh /
+        # _propagate_torus duplication.
+        for (r, c), pe in grid.items():
+            neighbors = self.get_neighbors(r, c)
+            self._apply_neighbor_inputs(pe, neighbors, snapshot)
 
     def get_neighbors(
         self, row: int, col: int
@@ -234,14 +238,14 @@ class NoC:
 
         Returns:
             dict mapping direction string to (row, col) tuple or None.
-            Keys: "norte", "sur", "este", "oeste".
+            Keys: "north", "south", "east", "west".
 
         Example:
             >>> noc = NoC(rows=3, cols=3, topology="mesh")
-            >>> noc.get_neighbors(0, 0)["norte"] is None
+            >>> noc.get_neighbors(0, 0)["north"] is None
             True
             >>> noc = NoC(rows=3, cols=3, topology="torus")
-            >>> noc.get_neighbors(0, 0)["norte"]
+            >>> noc.get_neighbors(0, 0)["north"]
             (2, 0)
         """
         if self.topology == TOPOLOGY_MESH:
@@ -252,43 +256,18 @@ class NoC:
     # Private routing implementations
     # ------------------------------------------------------------------
 
-    def _propagate_mesh(
-        self,
-        grid: dict[tuple[int, int], "ProcessingElement"],
-        snapshot: dict[tuple[int, int], int],
-    ) -> None:
-        """
-        Apply Mesh routing: edges have no wrap-around connections.
-
-        A PE at position (r, c) receives from:
-          - norte: (r-1, c) if r > 0
-          - sur:   (r+1, c) if r < rows-1
-          - este:  (r, c+1) if c < cols-1
-          - oeste: (r, c-1) if c > 0
-        """
-        for (r, c), pe in grid.items():
-            neighbors = self._neighbors_mesh(r, c)
-            self._apply_neighbor_inputs(pe, neighbors, snapshot)
-
-    def _propagate_torus(
-        self,
-        grid: dict[tuple[int, int], "ProcessingElement"],
-        snapshot: dict[tuple[int, int], int],
-    ) -> None:
-        """
-        Apply Torus routing: wrap-around connections in both dimensions.
-
-        Every PE has exactly four neighbors; edges wrap to the opposite
-        side of the mesh using modular arithmetic.
-        """
-        for (r, c), pe in grid.items():
-            neighbors = self._neighbors_torus(r, c)
-            self._apply_neighbor_inputs(pe, neighbors, snapshot)
-
     def _neighbors_mesh(
         self, row: int, col: int
     ) -> dict[str, tuple[int, int] | None]:
-        """Compute Mesh neighbors; returns None for out-of-bounds."""
+        """
+        Compute Mesh neighbors; returns None for out-of-bounds positions.
+
+        A PE at (row, col) has neighbors:
+          - north: (row-1, col) if row > 0,          else None
+          - south: (row+1, col) if row < rows-1,      else None
+          - east:  (row, col+1) if col < cols-1,      else None
+          - west:  (row, col-1) if col > 0,           else None
+        """
         return {
             DIRECTION_NORTH: (row - 1, col) if row > 0 else None,
             DIRECTION_SOUTH: (row + 1, col) if row < self.rows - 1 else None,
@@ -298,8 +277,13 @@ class NoC:
 
     def _neighbors_torus(
         self, row: int, col: int
-    ) -> dict[str, tuple[int, int] | None]:
-        """Compute Torus neighbors using modular arithmetic."""
+    ) -> dict[str, tuple[int, int]]:
+        """
+        Compute Torus neighbors using modular arithmetic.
+
+        Every PE always has exactly four neighbors; the return type
+        never includes None because wrap-around connections always exist.
+        """
         return {
             DIRECTION_NORTH: ((row - 1) % self.rows, col),
             DIRECTION_SOUTH: ((row + 1) % self.rows, col),

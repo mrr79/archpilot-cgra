@@ -4,6 +4,9 @@ Unit tests for ProcessingElement.
 Verifies FU and RF integration, arithmetic operations, input multiplexer,
 overflow detection, activity tracking, and reset behavior.
 
+Direction labels use English ("north", "south", "east", "west") to
+match the standardized public API (PR review: Must Fix — direction names).
+
 Complies with: SYRS-FUN-002, SYRS-FUN-010, SYRS-REL-001
 """
 
@@ -163,28 +166,32 @@ class TestProcessingElement:
         self.pe.load_instruction(make_instr("ADD", mux_sel=0))
         assert self.pe.tick() == 25
 
-    def test_mux_sel_norte_reads_neighbor(self) -> None:
-        self.pe.set_neighbor_input("norte", 30)
+    def test_mux_sel_north_reads_neighbor(self) -> None:
+        # mux_sel=1 → "north" neighbor input
+        self.pe.set_neighbor_input("north", 30)
         self.pe.rf.write(1, 5)
         self.pe.load_instruction(make_instr("ADD", mux_sel=1))
         assert self.pe.tick() == 35
 
-    def test_mux_sel_sur_reads_neighbor(self) -> None:
-        self.pe.set_neighbor_input("sur", 10)
+    def test_mux_sel_south_reads_neighbor(self) -> None:
+        # mux_sel=2 → "south" neighbor input
+        self.pe.set_neighbor_input("south", 10)
         self.pe.rf.write(1, 3)
         self.pe.load_instruction(make_instr("ADD", mux_sel=2))
         assert self.pe.tick() == 13
 
-    def test_mux_sel_este_reads_neighbor(self) -> None:
+    def test_mux_sel_east_reads_neighbor(self) -> None:
+        # mux_sel=3 → "east" neighbor input
         # East path was untested; all five mux inputs must be covered.
-        self.pe.set_neighbor_input("este", 20)
+        self.pe.set_neighbor_input("east", 20)
         self.pe.rf.write(1, 4)
         self.pe.load_instruction(make_instr("ADD", mux_sel=3))
         assert self.pe.tick() == 24
 
-    def test_mux_sel_oeste_reads_neighbor(self) -> None:
+    def test_mux_sel_west_reads_neighbor(self) -> None:
+        # mux_sel=4 → "west" neighbor input
         # West path was untested; all five mux inputs must be covered.
-        self.pe.set_neighbor_input("oeste", 15)
+        self.pe.set_neighbor_input("west", 15)
         self.pe.rf.write(1, 5)
         self.pe.load_instruction(make_instr("ADD", mux_sel=4))
         assert self.pe.tick() == 20
@@ -199,8 +206,8 @@ class TestProcessingElement:
     # --- set_neighbor_input ---
 
     def test_set_valid_neighbor(self) -> None:
-        self.pe.set_neighbor_input("oeste", 55)
-        assert self.pe.neighbor_inputs["oeste"] == 55
+        self.pe.set_neighbor_input("west", 55)
+        assert self.pe.neighbor_inputs["west"] == 55
 
     def test_set_invalid_direction_raises(self) -> None:
         with pytest.raises(SimulationException):

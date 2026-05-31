@@ -44,18 +44,19 @@ class Instruction(TypedDict):
 
 
 # Valid neighbor directions for NoC input.
+# All labels use English to match the rest of the public API.
 # Final prevents accidental reassignment of this module-level constant.
 VALID_DIRECTIONS: Final[frozenset[str]] = frozenset(
-    {"norte", "sur", "este", "oeste"}
+    {"north", "south", "east", "west"}
 )
 
 # Maps mux_sel integer values to neighbor direction strings.
 # Final prevents accidental reassignment of this module-level constant.
 MUX_DIRECTION_MAP: Final[dict[int, str]] = {
-    1: "norte",
-    2: "sur",
-    3: "este",
-    4: "oeste",
+    1: "north",
+    2: "south",
+    3: "east",
+    4: "west",
 }
 
 
@@ -74,6 +75,10 @@ class ProcessingElement:
       3. Checks for overflow and raises an exception if needed.
       4. Writes the result to the destination register in the RF.
       5. Updates the activity trace counter.
+
+    __slots__ is declared to eliminate the per-instance __dict__,
+    saving ~200-400 bytes per object. In a 16×16 mesh with multiple
+    sub-objects this removes 768+ extra dicts with zero behavioral change.
 
     Complies with: SYRS-FUN-002, SYRS-FUN-010.
 
@@ -99,6 +104,18 @@ class ProcessingElement:
         >>> pe.rf.read(2)
         15
     """
+
+    __slots__ = (
+        "pe_id",
+        "data_width",
+        "fu",
+        "rf",
+        "input_mux_sel",
+        "output_value",
+        "activity_count",
+        "neighbor_inputs",
+        "_current_instruction",
+    )
 
     def __init__(
         self,
@@ -131,10 +148,10 @@ class ProcessingElement:
         self.output_value: int = 0
         self.activity_count: int = 0
         self.neighbor_inputs: dict[str, int] = {
-            "norte": 0,
-            "sur": 0,
-            "este": 0,
-            "oeste": 0,
+            "north": 0,
+            "south": 0,
+            "east": 0,
+            "west": 0,
         }
         # X | None is the modern Python 3.10+ union syntax.
         # Replaces the deprecated Optional[X] from typing.
@@ -177,6 +194,12 @@ class ProcessingElement:
           4. Write the result to the destination register.
           5. Update the activity trace counter (SYRS-FUN-007).
 
+        Direct key indexing (instr["key"]) is used instead of
+        instr.get("key", default) because Instruction is a TypedDict
+        with required keys — all keys are guaranteed to exist at static
+        analysis time. Using .get() with defaults would silently swallow
+        missing-key errors, defeating the purpose of TypedDict.
+
         Returns:
             int: value produced in this cycle (stored in output_value).
 
@@ -199,10 +222,11 @@ class ProcessingElement:
             return 0
 
         instr = self._current_instruction
-        opcode: str = instr.get("opcode", "NOP")
-        src_a_idx: int = instr.get("src_a", 0)
-        src_b_idx: int = instr.get("src_b", 0)
-        dst_idx: int = instr.get("dst", 0)
+        # Direct indexing: TypedDict guarantees these keys always exist.
+        opcode: str    = instr["opcode"]
+        src_a_idx: int = instr["src_a"]
+        src_b_idx: int = instr["src_b"]
+        dst_idx: int   = instr["dst"]
 
         operand_a: int = self._read_mux(src_a_idx)
         operand_b: int = self.rf.read(src_b_idx)
@@ -224,7 +248,7 @@ class ProcessingElement:
 
         Args:
             direction (str): cardinal direction of the neighbor:
-                             "norte", "sur", "este", "oeste".
+                             "north", "south", "east", "west".
             value (int):     data value received from the neighbor.
 
         Raises:
@@ -232,8 +256,8 @@ class ProcessingElement:
 
         Example:
             >>> pe = ProcessingElement((1, 1))
-            >>> pe.set_neighbor_input("norte", 99)
-            >>> pe.neighbor_inputs["norte"]
+            >>> pe.set_neighbor_input("north", 99)
+            >>> pe.neighbor_inputs["north"]
             99
         """
         if direction not in VALID_DIRECTIONS:
@@ -290,7 +314,7 @@ class ProcessingElement:
         self.output_value = 0
         self.activity_count = 0
         self._current_instruction = None
-        self.neighbor_inputs = {"norte": 0, "sur": 0, "este": 0, "oeste": 0}
+        self.neighbor_inputs = {"north": 0, "south": 0, "east": 0, "west": 0}
 
     # ------------------------------------------------------------------
     # Private methods

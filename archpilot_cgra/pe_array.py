@@ -80,6 +80,11 @@ class PEArray:
         All parameters can be specified independently per PE via the
         config_memory or by loading a configuration sequence later.
 
+        When a ConfigMemory instance is injected, its dimensions must
+        match rows and cols exactly. A mismatch would cause step() to
+        crash with an unguarded KeyError because ConfigMemory.distribute()
+        iterates its own rows/cols while PEArray._grid uses its own.
+
         Args:
             rows (int):          number of rows in the mesh (>= 1).
             cols (int):          number of columns in the mesh (>= 1).
@@ -90,10 +95,13 @@ class PEArray:
                                  Defaults to "mesh".
             config_memory:       pre-built ConfigMemory instance.
                                  If None, an empty one is created.
+                                 If provided, its dimensions must equal
+                                 rows × cols.
 
         Raises:
-            SimulationException: if rows or cols < 1, or topology is
-                                 not supported.
+            SimulationException: if rows or cols < 1, topology is not
+                                 supported, or an injected ConfigMemory
+                                 has mismatched dimensions.
 
         Example:
             >>> array = PEArray(rows=2, cols=2, topology="torus")
@@ -109,6 +117,15 @@ class PEArray:
                 f"Unsupported topology: '{topology}'. "
                 f"Valid: {sorted(SUPPORTED_TOPOLOGIES)}."
             )
+
+        # Validate injected ConfigMemory dimensions (prevents KeyError in step)
+        if config_memory is not None:
+            if config_memory.rows != rows or config_memory.cols != cols:
+                raise SimulationException(
+                    f"ConfigMemory dimensions ({config_memory.rows}x"
+                    f"{config_memory.cols}) do not match PEArray dimensions "
+                    f"({rows}x{cols})."
+                )
 
         self.rows: int = rows
         self.cols: int = cols

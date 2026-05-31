@@ -4,6 +4,9 @@ Unit tests for the Network-on-Chip (NoC).
 Verifies Mesh and Torus neighbor computation, output propagation,
 topology locking (SYRS-MOD-001), and snapshot correctness.
 
+Direction labels use English ("north", "south", "east", "west") to
+match the standardized public API (PR review: Must Fix — direction names).
+
 Complies with: SYRS-FUN-006, SYRS-MOD-001, SYRS-REL-001
 """
 
@@ -94,40 +97,40 @@ class TestMeshNeighbors:
 
     def test_center_has_all_four_neighbors(self) -> None:
         n = self.noc.get_neighbors(1, 1)
-        assert n["norte"] == (0, 1)
-        assert n["sur"] == (2, 1)
-        assert n["este"] == (1, 2)
-        assert n["oeste"] == (1, 0)
+        assert n["north"] == (0, 1)
+        assert n["south"] == (2, 1)
+        assert n["east"]  == (1, 2)
+        assert n["west"]  == (1, 0)
 
     def test_top_left_corner_has_no_north_or_west(self) -> None:
         n = self.noc.get_neighbors(0, 0)
-        assert n["norte"] is None
-        assert n["oeste"] is None
-        assert n["sur"] == (1, 0)
-        assert n["este"] == (0, 1)
+        assert n["north"] is None
+        assert n["west"]  is None
+        assert n["south"] == (1, 0)
+        assert n["east"]  == (0, 1)
 
     def test_bottom_right_corner_has_no_south_or_east(self) -> None:
         n = self.noc.get_neighbors(2, 2)
-        assert n["sur"] is None
-        assert n["este"] is None
-        assert n["norte"] == (1, 2)
-        assert n["oeste"] == (2, 1)
+        assert n["south"] is None
+        assert n["east"]  is None
+        assert n["north"] == (1, 2)
+        assert n["west"]  == (2, 1)
 
     def test_top_row_no_north(self) -> None:
         n = self.noc.get_neighbors(0, 1)
-        assert n["norte"] is None
+        assert n["north"] is None
 
     def test_bottom_row_no_south(self) -> None:
         n = self.noc.get_neighbors(2, 1)
-        assert n["sur"] is None
+        assert n["south"] is None
 
     def test_left_col_no_west(self) -> None:
         n = self.noc.get_neighbors(1, 0)
-        assert n["oeste"] is None
+        assert n["west"] is None
 
     def test_right_col_no_east(self) -> None:
         n = self.noc.get_neighbors(1, 2)
-        assert n["este"] is None
+        assert n["east"] is None
 
 
 class TestTorusNeighbors:
@@ -138,26 +141,26 @@ class TestTorusNeighbors:
 
     def test_top_left_wraps_north(self) -> None:
         n = self.noc.get_neighbors(0, 0)
-        assert n["norte"] == (2, 0)
+        assert n["north"] == (2, 0)
 
     def test_top_left_wraps_west(self) -> None:
         n = self.noc.get_neighbors(0, 0)
-        assert n["oeste"] == (0, 2)
+        assert n["west"] == (0, 2)
 
     def test_bottom_right_wraps_south(self) -> None:
         n = self.noc.get_neighbors(2, 2)
-        assert n["sur"] == (0, 2)
+        assert n["south"] == (0, 2)
 
     def test_bottom_right_wraps_east(self) -> None:
         n = self.noc.get_neighbors(2, 2)
-        assert n["este"] == (2, 0)
+        assert n["east"] == (2, 0)
 
     def test_center_same_as_mesh(self) -> None:
         n = self.noc.get_neighbors(1, 1)
-        assert n["norte"] == (0, 1)
-        assert n["sur"] == (2, 1)
-        assert n["este"] == (1, 2)
-        assert n["oeste"] == (1, 0)
+        assert n["north"] == (0, 1)
+        assert n["south"] == (2, 1)
+        assert n["east"]  == (1, 2)
+        assert n["west"]  == (1, 0)
 
     def test_all_neighbors_are_not_none_in_torus(self) -> None:
         for r in range(3):
@@ -185,18 +188,18 @@ class TestMeshPropagation:
         noc.propagate(grid)
 
         center = grid[(1, 1)]
-        assert center.neighbor_inputs["norte"] == 10
-        assert center.neighbor_inputs["sur"] == 20
-        assert center.neighbor_inputs["este"] == 30
-        assert center.neighbor_inputs["oeste"] == 40
+        assert center.neighbor_inputs["north"] == 10
+        assert center.neighbor_inputs["south"] == 20
+        assert center.neighbor_inputs["east"]  == 30
+        assert center.neighbor_inputs["west"]  == 40
 
     def test_corner_boundary_inputs_are_zero(self) -> None:
         noc = NoC(rows=3, cols=3, topology=TOPOLOGY_MESH)
         grid = make_grid(3, 3)
         noc.propagate(grid)
         corner = grid[(0, 0)]
-        assert corner.neighbor_inputs["norte"] == 0
-        assert corner.neighbor_inputs["oeste"] == 0
+        assert corner.neighbor_inputs["north"] == 0
+        assert corner.neighbor_inputs["west"]  == 0
 
     def test_propagation_uses_snapshot(self) -> None:
         # Verify that PE A's output_value before propagate is used,
@@ -206,7 +209,7 @@ class TestMeshPropagation:
         grid[(0, 0)].output_value = 99
         noc.propagate(grid)
         # (0,1) should receive (0,0)'s PRE-propagation output = 99
-        assert grid[(0, 1)].neighbor_inputs["oeste"] == 99
+        assert grid[(0, 1)].neighbor_inputs["west"] == 99
 
     def test_one_dimensional_horizontal_propagation(self) -> None:
         noc = NoC(rows=1, cols=3, topology=TOPOLOGY_MESH)
@@ -214,8 +217,8 @@ class TestMeshPropagation:
         grid[(0, 0)].output_value = 5
         grid[(0, 2)].output_value = 7
         noc.propagate(grid)
-        assert grid[(0, 1)].neighbor_inputs["oeste"] == 5
-        assert grid[(0, 1)].neighbor_inputs["este"] == 7
+        assert grid[(0, 1)].neighbor_inputs["west"] == 5
+        assert grid[(0, 1)].neighbor_inputs["east"] == 7
 
 
 class TestTorusPropagation:
@@ -227,7 +230,7 @@ class TestTorusPropagation:
         grid[(0, 2)].output_value = 42
         noc.propagate(grid)
         # (0,0) west neighbor wraps to (0,2)
-        assert grid[(0, 0)].neighbor_inputs["oeste"] == 42
+        assert grid[(0, 0)].neighbor_inputs["west"] == 42
 
     def test_top_edge_receives_bottom_edge_as_north(self) -> None:
         noc = NoC(rows=3, cols=1, topology=TOPOLOGY_TORUS)
@@ -235,7 +238,7 @@ class TestTorusPropagation:
         grid[(2, 0)].output_value = 77
         noc.propagate(grid)
         # (0,0) north neighbor wraps to (2,0)
-        assert grid[(0, 0)].neighbor_inputs["norte"] == 77
+        assert grid[(0, 0)].neighbor_inputs["north"] == 77
 
     def test_single_column_east_west_wrap(self) -> None:
         noc = NoC(rows=2, cols=2, topology=TOPOLOGY_TORUS)
@@ -243,4 +246,50 @@ class TestTorusPropagation:
         grid[(0, 1)].output_value = 55
         noc.propagate(grid)
         # (0,0) east neighbor is (0,1); (0,1) west neighbor wraps to (0,0)
-        assert grid[(0, 0)].neighbor_inputs["este"] == 55
+        assert grid[(0, 0)].neighbor_inputs["east"] == 55
+
+
+class TestSinglePEGrid:
+    """
+    Tests for 1×1 grid propagation.
+
+    A single-PE grid is a valid configuration: in Mesh every direction
+    is a boundary (value 0); in Torus every direction wraps to itself
+    (self-loop). Neither case was tested in the original suite.
+    """
+
+    def test_single_pe_mesh_all_inputs_zero(self) -> None:
+        noc = NoC(rows=1, cols=1, topology=TOPOLOGY_MESH)
+        grid = make_grid(1, 1)
+        grid[(0, 0)].output_value = 42
+        noc.propagate(grid)
+        for v in grid[(0, 0)].neighbor_inputs.values():
+            assert v == 0
+
+    def test_single_pe_torus_self_loop(self) -> None:
+        noc = NoC(rows=1, cols=1, topology=TOPOLOGY_TORUS)
+        grid = make_grid(1, 1)
+        grid[(0, 0)].output_value = 7
+        noc.propagate(grid)
+        # In a 1×1 torus every neighbor wraps to itself
+        for v in grid[(0, 0)].neighbor_inputs.values():
+            assert v == 7
+
+
+class TestResetAndRerunRelockTopology:
+    """
+    Tests that step() after reset() re-locks the topology.
+
+    reset() calls unlock(); the very next step() must call lock() again.
+    """
+
+    def test_reset_and_rerun_relocks_topology(self) -> None:
+        array_mod = pytest.importorskip("archpilot_cgra.pe_array")
+        PEArray = array_mod.PEArray
+        array = PEArray(rows=2, cols=2)
+        array.step()
+        assert array.noc.locked
+        array.reset()
+        assert not array.noc.locked
+        array.step()
+        assert array.noc.locked

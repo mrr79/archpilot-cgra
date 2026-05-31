@@ -8,11 +8,19 @@ for switching trace generation.
 Complies with: SYRS-FUN-003, SYRS-MNT-001, SYRS-MNT-002, SYRS-QLY-002
 """
 
-from typing import Final
+from typing import Final, Literal, TypeAlias
 
 from archpilot_cgra.exceptions import InvalidOperationException
 
-# Valid opcodes supported by the FU.
+# Type alias for valid opcodes (PEP 613 — TypeAlias, Python 3.10+).
+# Type checkers enforce valid opcodes at analysis time — e.g.
+# fu.execute("MODULO", 1, 1) is flagged before the test even runs.
+# On Python 3.12+ this can be written as:
+#   type Opcode = Literal["ADD", "COMPLEMENT", "MUL", "NOP"]  # PEP 695
+# The frozenset guard below remains as a runtime safety net.
+Opcode: TypeAlias = Literal["ADD", "COMPLEMENT", "MUL", "NOP"]
+
+# Valid opcodes supported by the FU (runtime guard).
 # Final prevents accidental reassignment of this module-level constant.
 SUPPORTED_OPCODES: Final[frozenset[str]] = frozenset(
     {"ADD", "COMPLEMENT", "MUL", "NOP"}
@@ -29,6 +37,10 @@ class FunctionalUnit:
 
     Maintains the last executed opcode and an activity flag to enable
     switching trace generation (SYRS-FUN-007).
+
+    __slots__ is declared to eliminate the per-instance __dict__,
+    saving ~200-400 bytes per object. In a 16×16 mesh this removes
+    256+ extra dicts with zero behavioral change.
 
     Attributes:
         data_width (int): bit width of the processed data.
@@ -47,6 +59,8 @@ class FunctionalUnit:
         >>> fu.execute("NOP", 0)
         0
     """
+
+    __slots__ = ("data_width", "last_opcode", "active")
 
     def __init__(self, data_width: int = 32) -> None:
         """
@@ -67,7 +81,7 @@ class FunctionalUnit:
 
     def execute(
         self,
-        opcode: str,
+        opcode: Opcode,
         operand_a: int,
         operand_b: int = 0,
     ) -> int:
@@ -80,11 +94,15 @@ class FunctionalUnit:
           - ``MUL``:        result = operand_a * operand_b
           - ``NOP``:        result = 0, no activity recorded
 
+        The opcode parameter is typed as Opcode (a Literal type alias),
+        so type checkers flag invalid opcodes at analysis time. The
+        SUPPORTED_OPCODES frozenset provides an additional runtime guard.
+
         Uses Python 3.10+ match statement as the idiomatic dispatch
         construct for opcode handling.
 
         Args:
-            opcode (str):    operation code to execute.
+            opcode (Opcode): operation code to execute.
             operand_a (int): first integer operand.
             operand_b (int): second integer operand.
                              Ignored in COMPLEMENT and NOP. Defaults to 0.

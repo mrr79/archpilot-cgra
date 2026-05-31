@@ -41,7 +41,8 @@ class ConfigMemory:
 
     Read and write operations on the internal sequence are protected by
     a threading.Lock, preventing race conditions when the simulation runs
-    with multiple threads (SYRS-REL-002).
+    with multiple threads (SYRS-REL-002). This includes the num_cycles
+    property, which acquires the lock before reading len(_sequence).
 
     If no instruction is defined for a given (cycle, pe_id) pair, a NOP
     instruction is returned, ensuring safe fallback behavior.
@@ -254,12 +255,17 @@ class ConfigMemory:
         """
         Number of configured cycles currently stored.
 
+        Acquires the internal lock before reading _sequence so that
+        concurrent writes (load_sequence, append_cycle, clear) cannot
+        produce a torn read (SYRS-REL-002).
+
         Example:
             >>> mem = ConfigMemory(rows=1, cols=1)
             >>> mem.num_cycles
             0
         """
-        return len(self._sequence)
+        with self._lock:
+            return len(self._sequence)
 
     # ------------------------------------------------------------------
     # Private methods

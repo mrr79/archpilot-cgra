@@ -12,6 +12,9 @@ Four scenarios:
 3. Dataflow pipeline via NoC Torus (wrap-around east link).
 4. Multi-cycle accumulation stress test.
 
+Direction labels use English ("north", "south", "east", "west") to
+match the standardized public API (PR review: Must Fix — direction names).
+
 Complies with: SYRS-FUN-001, SYRS-FUN-005, SYRS-FUN-006,
                SYRS-FUN-007, SYRS-FUN-008, SYRS-REL-001
 """
@@ -150,8 +153,8 @@ class TestFullFlowNoCDataflow:
     PE(0,0) produces 15 and PE(0,1) consumes it via the west NoC link.
 
     Cycle 0: PE(0,0) ADD(10,5)=15 written to rf[0]. output_value=15.
-    Cycle 1: NoC propagates 15 to PE(0,1) oeste input (mux_sel=4).
-             PE(0,1) ADD(oeste=15, rf[1]=3) = 18 written to rf[2].
+    Cycle 1: NoC propagates 15 to PE(0,1) west input (mux_sel=4).
+             PE(0,1) ADD(west=15, rf[1]=3) = 18 written to rf[2].
 
     Reference model: 10 + 5 = 15; 15 + 3 = 18.
     """
@@ -185,8 +188,8 @@ class TestFullFlowNoCDataflow:
 
     def test_noc_west_input_after_propagation(self) -> None:
         self.array.step()   # cycle 0: pe00 output_value=15
-        self.array.step()   # cycle 1: noc routes, pe01 reads oeste=15
-        assert self.array.get_pe(0, 1).neighbor_inputs["oeste"] == 15
+        self.array.step()   # cycle 1: noc routes, pe01 reads west=15
+        assert self.array.get_pe(0, 1).neighbor_inputs["west"] == 15
 
     def test_topology_locked_during_run(self) -> None:
         self.array.step()
@@ -207,8 +210,8 @@ class TestFullFlowTorusDataflow:
     In a 1x2 Torus, PE(0,1) east wraps to PE(0,0).
 
     Cycle 0: PE(0,1) MUL(3,4)=12 written to rf[0]. output_value=12.
-    Cycle 1: NoC Torus propagates 12 to PE(0,0) este input (mux_sel=3).
-             PE(0,0) ADD(este=12, rf[1]=8) = 20 written to rf[2].
+    Cycle 1: NoC Torus propagates 12 to PE(0,0) east input (mux_sel=3).
+             PE(0,0) ADD(east=12, rf[1]=8) = 20 written to rf[2].
 
     Reference model: 3*4=12; 12+8=20.
     """
@@ -249,8 +252,8 @@ class TestFullFlowTorusDataflow:
 
     def test_torus_east_input_propagated(self) -> None:
         self.array.step()   # cycle 0: pe01 output_value=12
-        self.array.step()   # cycle 1: torus routes 12 to pe00 este
-        assert self.array.get_pe(0, 0).neighbor_inputs["este"] == 12
+        self.array.step()   # cycle 1: torus routes 12 to pe00 east
+        assert self.array.get_pe(0, 0).neighbor_inputs["east"] == 12
 
 
 # ---------------------------------------------------------------------------

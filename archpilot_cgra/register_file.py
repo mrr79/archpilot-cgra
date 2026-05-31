@@ -26,6 +26,10 @@ class RegisterFile:
     registers per cell (SYRS-FUN-004). All registers are initialized to 0.
     Supports indexed read and write with range validation on every access.
 
+    __slots__ is declared to eliminate the per-instance __dict__,
+    saving ~200-400 bytes per object. In a 16×16 mesh this removes
+    256+ extra dicts with zero behavioral change.
+
     Attributes:
         depth (int):      number of available registers [2, 16].
         data_width (int): bit width of each register.
@@ -38,6 +42,8 @@ class RegisterFile:
         >>> len(rf)
         4
     """
+
+    __slots__ = ("depth", "data_width", "_registers")
 
     def __init__(self, depth: int = 4, data_width: int = 32) -> None:
         """

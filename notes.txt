@@ -16,3 +16,19 @@ pytest tests/test_processing_element.py -v
 
 # Verificar estilo PEP 8 (SYRS-MNT-001)
 flake8 archpilot_cgra/ tests/
+
+
+-----
+para correr todos los tests incluyendo los nuevos:
+pytest tests/ -q
+
+ADD validation:
+Validation ✓ PASS
+  Elements compared : 1
+  Mismatches        : 0
+  Max abs error     : 0.0
+  Max rel error     : 0.0000%
+  Tolerance         : 0.0
+
+GEMM 2×2 golden result: [[19, 22], [43, 50]]
+(expected [[19,22],[43,50]])

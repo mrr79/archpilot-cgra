@@ -226,4 +226,5 @@ build/
 .coverage
 htmlcov/
 *.log
-.env
+.envppa_report.csv
+heatmap.csv

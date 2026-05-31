@@ -1,0 +1,47 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "archpilot-cgra"
+version = "0.2.0"
+description = "Cycle-accurate CGRA simulator with pre-RTL PPA estimation"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "Apache-2.0"}
+authors = [
+    {name = "Mariana Rojas Rojas"}
+]
+keywords = ["CGRA", "simulator", "PPA", "hardware", "architecture", "reconfigurable"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
+    "Topic :: Scientific/Engineering",
+    "Intended Audience :: Science/Research"
+]
+dependencies = []
+
+[project.optional-dependencies]
+viz = [
+    "matplotlib>=3.7"
+]
+
+dev = [
+    "pytest>=7.0",
+    "pytest-cov>=4.0"
+]
+
+[tool.setuptools.packages.find]
+include = ["archpilot_cgra*", "examples*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-v"
+
+[tool.coverage.run]
+source = ["archpilot_cgra"]

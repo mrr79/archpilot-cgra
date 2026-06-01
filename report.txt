@@ -1,3 +1,7 @@
 El programa de 7 ciclos del FIR es idéntico al del GEMM (4 MUL + 3 ADD en árbol). 
 Esto demuestra la propiedad clave de las CGRA: la misma estructura de hardware ejecuta 
 algoritmos diferentes simplemente cambiando los datos de entrada — no el programa.
+
+
+El simulador tiene 280 tests, pero ppa_engine.py y heatmap.py nunca fueron probados
+ directamente solo se probaron indirectamente a través de los ejemplos.

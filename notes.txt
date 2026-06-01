@@ -1,34 +1,485 @@
-# 1. Clonar el repo e instalar dependencias de desarrollo
-pip install -r requirements-dev.txt
-
-# 2. Desde la raiz del proyecto (donde esta la carpeta archpilot_cgra/)
-
-# Correr todas las pruebas con salida detallada
-pytest tests/ -v
-
-# Correr con reporte de cobertura (SYRS-REL-001)
-pytest tests/ -v --cov=archpilot_cgra --cov-report=term-missing
-
-# Correr solo las pruebas de un modulo especifico
-pytest tests/test_functional_unit.py -v
-pytest tests/test_register_file.py -v
-pytest tests/test_processing_element.py -v
-
-# Verificar estilo PEP 8 (SYRS-MNT-001)
-flake8 archpilot_cgra/ tests/
-
-
------
-para correr todos los tests incluyendo los nuevos:
-pytest tests/ -q
-
-ADD validation:
-Validation ✓ PASS
-  Elements compared : 1
-  Mismatches        : 0
-  Max abs error     : 0.0
-  Max rel error     : 0.0000%
-  Tolerance         : 0.0
-
-GEMM 2×2 golden result: [[19, 22], [43, 50]]
-(expected [[19,22],[43,50]])
+================================================================================
+  ARCHPILOT-CGRA — GUÍA DE PRUEBAS Y USO
+  Mariana Rojas Rojas,  Estudiante Ingeniería en Computadores
+  Entorno de Modelado y Simulación para Arquitecturas CGRA
+  Instituto Tecnológico de Costa Rica — ECASLab, ! sem 2026. 
+================================================================================
+ 
+Esta guía explica cómo instalar, ejecutar y entender todos los componentes
+del proyecto: simulador, ejemplos, benchmarks y suite de pruebas.
+ 
+Requisitos:
+  - Python 3.10 o superior
+  - pip
+  - Sistema operativo: Linux / macOS / Windows (WSL)
+ 
+────────────────────────────────────────────────────────────────────────────────
+  1. INSTALACIÓN
+────────────────────────────────────────────────────────────────────────────────
+ 
+Desde la raíz del repositorio:
+ 
+  # 1. Crear y activar entorno virtual
+  python3 -m venv .venv
+  source .venv/bin/activate          # Linux / macOS
+  # .venv\Scripts\activate           # Windows
+ 
+  # 2. Instalar el paquete en modo editable (permite editar el código
+  #    sin reinstalar)
+  pip install -e .
+ 
+  # 3. Instalar dependencias de desarrollo y validación
+  pip install pytest pytest-cov numpy
+ 
+  # Verificar instalación
+  python3 -c "import archpilot_cgra; print('OK')"
+ 
+────────────────────────────────────────────────────────────────────────────────
+  2. ESTRUCTURA DEL PROYECTO
+────────────────────────────────────────────────────────────────────────────────
+ 
+  archpilot-cgra/
+  │
+  ├── archpilot_cgra/          ← Paquete principal (el simulador)
+  │   ├── functional_unit.py   ← Unidad aritmética del PE (ADD/MUL/COMPLEMENT)
+  │   ├── register_file.py     ← Banco de registros por PE (profundidad 2-16)
+  │   ├── processing_element.py← PE completo: FU + RF + multiplexor de entrada
+  │   ├── config_memory.py     ← Memoria de configuración centralizada
+  │   ├── noc.py               ← Red en Chip (Mesh y Torus)
+  │   ├── pe_array.py          ← Motor principal: malla NxM + simulación ciclo
+  │   ├── ppa_engine.py        ← Estimador de Potencia, Rendimiento y Área
+  │   ├── heatmap.py           ← Generador de mapas de calor de utilización
+  │   └── golden_model.py      ← Modelo de referencia para validación
+  │
+  ├── benchmarks/              ← Programas que corren en el simulador
+  │   ├── gemm.py              ← Multiplicación de matrices 4×4 (GEMM)
+  │   └── fir.py               ← Filtro FIR de 4 coeficientes
+  │
+  ├── examples/                ← Scripts didácticos de uso
+  │   ├── basic_simulation.py  ← Simulación básica 2×2
+  │   └── ppa_estimation.py    ← Estimación PPA en malla 4×4
+  │
+  └── tests/                   ← Suite completa de pruebas (360 tests)
+      ├── test_functional_unit.py
+      ├── test_register_file.py
+      ├── test_processing_element.py
+      ├── test_config_memory.py
+      ├── test_noc.py
+      ├── test_pe_array.py
+      ├── test_integration.py
+      ├── test_golden_model.py
+      ├── test_ppa_engine.py
+      ├── test_heatmap.py
+      ├── test_benchmark_gemm.py
+      └── test_benchmark_fir.py
+ 
+────────────────────────────────────────────────────────────────────────────────
+  3. EJEMPLOS — Punto de entrada para entender el simulador
+────────────────────────────────────────────────────────────────────────────────
+ 
+Los ejemplos están en la carpeta examples/ y son scripts listos para correr
+que muestran el flujo de uso más común del simulador.
+ 
+────────────────────────────────────────────
+  3.1 Simulación básica (basic_simulation.py)
+────────────────────────────────────────────
+ 
+  python3 examples/basic_simulation.py
+ 
+¿Qué hace?
+  Crea una malla 2×2 de 4 Processing Elements.
+  Programa 2 ciclos:
+    - Ciclo 0: PE(0,0) suma dos registros (10+5=15)
+               PE(0,1) multiplica dos registros (4×7=28)
+    - Ciclo 1: PE(0,0) multiplica el resultado anterior por 3 (15×3=45)
+  Imprime el output de cada PE por ciclo y el resumen de actividad.
+ 
+Salida esperada:
+  Running 2-cycle simulation on a 2×2 mesh...
+ 
+  Cycle 0:
+    PE(0, 0) output = 15
+    PE(0, 1) output = 28
+    PE(1, 0) output = 0
+    PE(1, 1) output = 0
+ 
+  Cycle 1:
+    PE(0, 0) output = 45
+    PE(0, 1) output = 0
+    ...
+ 
+  Final register values:
+    PE(0,0) rf[0] = 45  (expected 45: ADD(10,5)=15 then MUL(15,3)=45)
+    PE(0,1) rf[2] = 28  (expected 28: MUL(4,7)=28)
+ 
+  Activity summary (active cycles per PE):
+    PE(0, 0): 2 active cycle(s)
+    PE(0, 1): 1 active cycle(s)
+    PE(1, 0): 0 active cycle(s)
+    PE(1, 1): 0 active cycle(s)
+ 
+¿Qué significa la actividad?
+  Cada PE lleva un contador de ciclos en los que ejecutó una operación real
+  (distinta de NOP). PE(0,0) trabajó 2 ciclos, PE(1,0) nunca trabajó.
+  Este contador alimenta la estimación de potencia del motor PPA.
+ 
+─────────────────────────────────────────────────
+  3.2 Estimación PPA completa (ppa_estimation.py)
+─────────────────────────────────────────────────
+ 
+  python3 examples/ppa_estimation.py
+ 
+¿Qué hace?
+  Crea una malla 4×4 (16 PEs) y corre 100 ciclos donde cada PE ejecuta
+  ADD en cada ciclo (contador incrementando rf[0] por 1).
+  Luego usa el PPA Engine para estimar área, potencia y actividad,
+  genera un reporte en CSV y muestra el mapa de calor de utilización.
+ 
+Salida esperada:
+  Setting up 4×4 mesh, 100 cycles...
+ 
+  ╔══════════════════════════════════════════╗
+  ║        ArchPilot-CGRA  PPA Report        ║
+  ╚══════════════════════════════════════════╝
+ 
+    AREA──────────────────────────────────────
+    FU area          :   39680.00 μm²
+    Register File    :    6553.60 μm²
+    NoC routers      :   20160.00 μm²
+    Total area       :   66393.60 μm²  (0.0664 mm²)
+ 
+    ACTIVITY──────────────────────────────────
+    Simulated cycles :        100
+    Mean α FU        :     1.0000    ← 100% de los PEs activos siempre
+    Mean α switch    :     0.0619    ← ~6% de bits cambian entre ciclos
+ 
+    POWER─────────────────────────────────────
+    Dynamic power    :      25.46 μW
+    Static power     :     358.40 μW
+    Total power      :     383.86 μW
+ 
+    Estimated in 0.5 ms  (SYRS-PER-002: < 5 s ✓)
+ 
+  CSV report written → ppa_report.csv
+  Heatmap CSV written → heatmap.csv
+ 
+  Mapa de calor (todos al 100% porque todos los PEs ejecutaron siempre):
+  +──────+──────+──────+──────+
+  | ██ 100% | ██ 100% | ██ 100% | ██ 100% |
+  ...
+ 
+Archivos generados:
+  ppa_report.csv   Reporte detallado con área, actividad y potencia por sección
+  heatmap.csv      Utilización por PE: fila, columna, ciclos activos, %
+ 
+¿Qué significan los valores PPA?
+  - Área FU (39680 μm²): espacio en silicio que ocupan las 16 unidades aritméticas
+  - Área RF (6553 μm²):  espacio de los bancos de registros (16 PEs × 4 regs × 32 bits)
+  - Área NoC (20160 μm²):espacio de los enrutadores de la red en chip
+  - α FU = 1.00:         todos los PEs ejecutaron operaciones reales en todos los ciclos
+  - α switch = 0.062:    en promedio solo el 6.2% de los bits de salida cambiaron
+                         entre ciclos consecutivos (el valor solo cambia en +1)
+  - Potencia dinámica:   P = α × CL × VDD² × f (depende de la actividad)
+  - Potencia estática:   leakage permanente, independiente de la actividad
+  - Total ≈ 0.38 mW:     consumo realista para una malla CGRA pequeña en 28 nm
+ 
+────────────────────────────────────────────────────────────────────────────────
+  4. BENCHMARKS — Validación funcional del simulador
+────────────────────────────────────────────────────────────────────────────────
+ 
+Los benchmarks mapean algoritmos reales sobre la CGRA y verifican que el
+resultado del simulador coincide exactamente con el modelo de referencia
+(Golden Model en NumPy). Son la prueba más importante de corrección del sistema.
+ 
+──────────────────────────────────────────────
+  4.1 GEMM 4×4 — Multiplicación de matrices
+──────────────────────────────────────────────
+ 
+  python3 benchmarks/gemm.py
+ 
+¿Qué hace?
+  Calcula C = A × B para dos matrices 4×4 de enteros usando una malla 4×4
+  de 16 PEs. Cada PE(i,j) computa un elemento C[i][j] de forma independiente
+  (estrategia data-parallel) en exactamente 7 ciclos.
+ 
+Distribución de ciclos:
+  Ciclos 0-3: cada PE ejecuta 4 MUL en paralelo
+              (producto de cada par de elementos del dot product)
+  Ciclos 4-5: árbol de sumas (ADD): partial_sum1 y partial_sum2
+  Ciclo 6:    suma final → C[i][j] en rf[14]
+ 
+Matrices de prueba por defecto:
+  A = [[1,2,3,4],[5,6,7,8],[9,10,11,12],[13,14,15,16]]
+  B = [[16,15,14,13],[12,11,10,9],[8,7,6,5],[4,3,2,1]]
+ 
+Salida esperada:
+  ╔══════════════════════════════════════════╗
+  ║      GEMM 4×4 Benchmark — ArchPilot      ║
+  ╚══════════════════════════════════════════╝
+    Cycles simulated : 7
+    Matrix size      : 4×4
+ 
+    CGRA result C = A × B:
+      [80, 70, 60, 50]
+      [240, 214, 188, 162]
+      [400, 358, 316, 274]
+      [560, 502, 444, 386]
+ 
+    Golden Model reference:
+      [80, 70, 60, 50]
+      [240, 214, 188, 162]
+      [400, 358, 316, 274]
+      [560, 502, 444, 386]
+ 
+  Validation ✓ PASS
+    Elements compared : 16
+    Mismatches        : 0
+    Max abs error     : 0.0
+ 
+¿Cómo verificar un elemento manualmente?
+  C[0][0] = 1×16 + 2×12 + 3×8 + 4×4 = 16+24+24+16 = 80  ✓
+  C[3][3] = 13×13 + 14×9 + 15×5 + 16×1 = 169+126+75+16 = 386  ✓
+ 
+¿Cómo usar el benchmark desde código propio?
+  from benchmarks.gemm import run_gemm
+  A = [[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1]]  # identidad
+  B = [[5,6,7,8],[1,2,3,4],[9,10,11,12],[13,14,15,16]]
+  result = run_gemm(A, B)
+  print(result.validation.passed)   # True
+  print(result.cgra_C)              # igual a B (I × B = B)
+ 
+────────────────────────────────────────
+  4.2 FIR 4-tap — Filtro de señales
+────────────────────────────────────────
+ 
+  python3 benchmarks/fir.py
+ 
+¿Qué hace?
+  Aplica un filtro FIR (Finite Impulse Response) de 4 coeficientes sobre
+  una señal de 7 muestras, usando una malla 1×4 (1 fila, 4 PEs).
+  Cada PE(0,j) calcula una muestra de salida y[j+3] de forma independiente.
+ 
+Fórmula del filtro:
+  y[n] = h[0]·x[n] + h[1]·x[n-1] + h[2]·x[n-2] + h[3]·x[n-3]
+ 
+Señal y coeficientes por defecto:
+  x = [1, 2, 3, 4, 5, 6, 7]     (señal de entrada)
+  h = [1, 1, 1, 1]               (promedio móvil de 4 muestras)
+ 
+Cálculo manual:
+  y[3] = 1×4 + 1×3 + 1×2 + 1×1 = 10
+  y[4] = 1×5 + 1×4 + 1×3 + 1×2 = 14
+  y[5] = 1×6 + 1×5 + 1×4 + 1×3 = 18
+  y[6] = 1×7 + 1×6 + 1×5 + 1×4 = 22
+ 
+Salida esperada:
+  ╔══════════════════════════════════════════╗
+  ║      FIR 4-tap Benchmark — ArchPilot     ║
+  ╚══════════════════════════════════════════╝
+    Cycles simulated : 7
+    Filter taps      : 4
+    Output samples   : 4
+ 
+    Signal x         : [1, 2, 3, 4, 5, 6, 7]
+    Coefficients h   : [1, 1, 1, 1]
+ 
+    CGRA output  y[3..6] : [10, 14, 18, 22]
+    Golden Model y[3..6] : [10, 14, 18, 22]
+ 
+  Validation ✓ PASS
+    Elements compared : 4
+    Mismatches        : 0
+    Max abs error     : 0.0
+ 
+¿Por qué es el mismo programa que GEMM?
+  Tanto GEMM como FIR se reducen a un producto punto (dot product).
+  El CGRA ejecuta el mismo programa de 7 ciclos en ambos casos — solo
+  cambian los datos cargados en los registros. Esto demuestra la
+  reconfigurabilidad de la arquitectura.
+ 
+¿Cómo usar el benchmark con datos propios?
+  from benchmarks.fir import run_fir
+  signal = [3, 1, 4, 1, 5, 9, 2]
+  coeffs = [1, -1, 1, -1]          # filtro pasa-altas
+  result = run_fir(signal, coeffs)
+  print(result.cgra_output)         # [y3, y4, y5, y6]
+  print(result.validation.passed)   # True
+ 
+────────────────────────────────────────────────────────────────────────────────
+  5. SUITE DE PRUEBAS — Verificación automática completa
+────────────────────────────────────────────────────────────────────────────────
+ 
+─────────────────────────────────────
+  5.1 Correr todos los tests de una vez
+─────────────────────────────────────
+ 
+  pytest tests/ -q
+ 
+Resultado esperado:
+  360 passed in 0.5s
+ 
+─────────────────────────────────────────────────
+  5.2 Correr con reporte de cobertura de código
+─────────────────────────────────────────────────
+ 
+  pytest tests/ --cov=archpilot_cgra --cov-report=term-missing -q
+ 
+Resultado esperado (cobertura ≥ 96%):
+  archpilot_cgra/config_memory.py      100%
+  archpilot_cgra/functional_unit.py    100%
+  archpilot_cgra/noc.py               100%
+  archpilot_cgra/pe_array.py           98%
+  archpilot_cgra/ppa_engine.py        100%
+  archpilot_cgra/heatmap.py            94%
+  archpilot_cgra/golden_model.py       79%   ← fallbacks sin NumPy (aceptable)
+  TOTAL                                96%
+ 
+─────────────────────────────────────────────────────────────
+  5.3 Correr un archivo de tests específico con detalle (-v)
+─────────────────────────────────────────────────────────────
+ 
+  pytest tests/test_functional_unit.py -v       ← unidad aritmética
+  pytest tests/test_register_file.py -v         ← banco de registros
+  pytest tests/test_processing_element.py -v    ← PE completo
+  pytest tests/test_config_memory.py -v         ← memoria de configuración
+  pytest tests/test_noc.py -v                   ← red en chip
+  pytest tests/test_pe_array.py -v              ← motor de simulación
+  pytest tests/test_integration.py -v           ← flujo completo end-to-end
+  pytest tests/test_golden_model.py -v          ← modelo de referencia
+  pytest tests/test_ppa_engine.py -v            ← estimador PPA
+  pytest tests/test_heatmap.py -v               ← mapas de calor
+  pytest tests/test_benchmark_gemm.py -v        ← benchmark GEMM
+  pytest tests/test_benchmark_fir.py -v         ← benchmark FIR
+ 
+────────────────────────────────────────────────────────────────────────────────
+  6. ¿QUÉ VERIFICA CADA ARCHIVO DE TESTS?
+────────────────────────────────────────────────────────────────────────────────
+ 
+test_functional_unit.py (19 tests)
+  Verifica que ADD, MUL, COMPLEMENT y NOP producen resultados correctos
+  con operandos positivos, negativos y cero. Verifica que opcodes inválidos
+  lanzan excepción, que el flag `active` es True solo para operaciones reales,
+  y que reset() limpia el estado correctamente.
+ 
+test_register_file.py (17 tests)
+  Verifica que la profundidad configurable funciona (2 a 16 registros),
+  que los índices fuera de rango lanzan excepción, que get_state() devuelve
+  una copia (no una referencia) y que reset() pone todo en cero.
+ 
+test_processing_element.py (30 tests)
+  Verifica los 5 modos del multiplexor de entrada (mux_sel 0-4):
+    0 = lee del RF local
+    1 = lee del vecino norte
+    2 = lee del vecino sur
+    3 = lee del vecino este
+    4 = lee del vecino oeste
+  Verifica detección de overflow: 100+100=200 en 8-bit lanza excepción,
+  pero -128 (mínimo válido en 8-bit signed) NO lanza excepción.
+ 
+test_config_memory.py (28 tests)
+  Verifica que las instrucciones llegan al PE correcto cada ciclo,
+  que PEs sin instrucción reciben NOP automáticamente, y que las
+  operaciones de lectura/escritura son thread-safe (100 lecturas
+  concurrentes desde 4 hilos no producen inconsistencias).
+ 
+test_noc.py (34 tests)
+  Verifica vecinos en topología Mesh (bordes tienen None) y Torus
+  (bordes tienen wrap-around, nunca None). Verifica que propagate()
+  usa un snapshot del ciclo anterior (no del actual) para evitar
+  artefactos de orden. Incluye casos especiales de malla 1×1.
+ 
+test_pe_array.py (32 tests)
+  Verifica el motor de simulación completo: step() avanza un ciclo,
+  run(n) avanza n ciclos, reset() desbloquea la topología, la malla
+  NxM se crea correctamente, y ConfigMemory con dimensiones incorrectas
+  lanza error antes de simular.
+ 
+test_integration.py (22 tests)
+  4 escenarios end-to-end que ejercitan el flujo completo:
+    1. 4 PEs en paralelo sin comunicación (mux_sel=0)
+    2. Pipeline por NoC Mesh (PE(0,0) produce, PE(0,1) consume)
+    3. Pipeline por NoC Torus con wrap-around
+    4. Contador multi-ciclo: 100 ciclos en malla 4×4
+ 
+test_golden_model.py (44 tests)
+  Verifica la corrección del modelo de referencia: ADD/MUL/COMPLEMENT
+  con valores conocidos, GEMM con matrices de identidad y cero,
+  FIR con respuesta al impulso, y validate() para comparar listas.
+ 
+test_ppa_engine.py (48 tests)
+  Verifica el estimador PPA: área escala correctamente con el tamaño
+  de malla, actividad nula produce potencia dinámica cero, la potencia
+  estática es siempre positiva, y estimate() tarda menos de 5 segundos
+  (requisito SYRS-PER-002). El CSV tiene header y secciones requeridas.
+ 
+test_heatmap.py (23 tests)
+  Verifica el mapa de calor ASCII (bloque █ para 100%, vacío para 0%)
+  y el CSV (columnas row, col, active_cycles, total_cycles, utilization_pct).
+ 
+test_benchmark_gemm.py (20 tests)
+  Verifica que el CGRA produce exactamente los mismos resultados que
+  NumPy para GEMM 4×4 con matrices de identidad, cero, valores negativos
+  y matrices arbitrarias. Error absoluto debe ser 0.
+ 
+test_benchmark_fir.py (27 tests)
+  Verifica el filtro FIR con promedio móvil, filtro identidad, filtro
+  de retardo, señal cero, coeficientes negativos y alternados.
+  El CGRA y el Golden Model deben coincidir exactamente.
+ 
+────────────────────────────────────────────────────────────────────────────────
+  7. FLUJO COMPLETO DE VALIDACIÓN
+────────────────────────────────────────────────────────────────────────────────
+ 
+Para verificar que el proyecto funciona de principio a fin en un solo comando:
+ 
+  # Instalar, correr ejemplos, benchmarks y tests
+  pip install -e . && \
+  python3 examples/basic_simulation.py && \
+  python3 examples/ppa_estimation.py && \
+  python3 benchmarks/gemm.py && \
+  python3 benchmarks/fir.py && \
+  pytest tests/ -q
+ 
+Resultado final esperado:
+  [basic_simulation output...]
+  [ppa_estimation output...]
+  GEMM: Validation ✓ PASS
+  FIR:  Validation ✓ PASS
+  360 passed in ~0.5s
+ 
+────────────────────────────────────────────────────────────────────────────────
+  8. SOLUCIÓN DE PROBLEMAS COMUNES
+────────────────────────────────────────────────────────────────────────────────
+ 
+Error: ModuleNotFoundError: No module named 'archpilot_cgra'
+  Solución: pip install -e .
+  (el paquete no está instalado en el entorno activo)
+ 
+Error: ModuleNotFoundError: No module named 'benchmarks'
+  Solución: correr desde la raíz del repositorio, no desde una subcarpeta
+  Verificar: ls benchmarks/__init__.py  (debe existir)
+ 
+Error: SyntaxError en functional_unit.py línea 19 (type Opcode = ...)
+  Causa: Python < 3.10. El proyecto requiere Python 3.10 o superior.
+  Solución: python3 --version  →  instalar Python 3.10+
+ 
+Error: BackendUnavailable en pip install -e .
+  Solución: verificar pyproject.toml usa build-backend = "setuptools.build_meta"
+  y NOT "setuptools.backends.legacy:build"
+ 
+Error: command 'python' not found
+  Solución: usar python3 en lugar de python (Linux/macOS)
+ 
+────────────────────────────────────────────────────────────────────────────────
+  9. REFERENCIA RÁPIDA
+────────────────────────────────────────────────────────────────────────────────
+ 
+  INSTALAR          pip install -e .
+  TODOS LOS TESTS   pytest tests/ -q
+  COBERTURA         pytest tests/ --cov=archpilot_cgra -q
+  EJEMPLO BÁSICO    python3 examples/basic_simulation.py
+  EJEMPLO PPA       python3 examples/ppa_estimation.py
+  BENCHMARK GEMM    python3 benchmarks/gemm.py
+  BENCHMARK FIR     python3 benchmarks/fir.py
+  UN TEST SOLO      pytest tests/test_noc.py -v
+ 

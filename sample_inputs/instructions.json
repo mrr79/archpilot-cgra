@@ -1,0 +1,15 @@
+{
+  "rows": 2,
+  "cols": 2,
+  "topology": "mesh",
+  "program": [
+    {
+      "0,0": {"opcode": "ADD", "src_a": 0, "src_b": 1, "dst": 2, "mux_sel": 0},
+      "0,1": {"opcode": "MUL", "src_a": 0, "src_b": 1, "dst": 2, "mux_sel": 0}
+    },
+    {
+      "0,0": {"opcode": "MUL", "src_a": 2, "src_b": 3, "dst": 0, "mux_sel": 0},
+      "1,0": {"opcode": "ADD", "src_a": 0, "src_b": 1, "dst": 2, "mux_sel": 4}
+    }
+  ]
+}

@@ -1,0 +1,12 @@
+# Initial register values: row,col,register_index,value
+# PE(0,0): will compute ADD(10,5)=15, then MUL(15,3)=45
+0,0,0,10
+0,0,1,5
+0,0,3,3
+
+# PE(0,1): will compute MUL(4,7)=28
+0,1,0,4
+0,1,1,7
+
+# PE(1,0): reads its west neighbor (PE(0,0)) via mux_sel=4 in cycle 1
+1,0,1,100
